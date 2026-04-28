@@ -324,6 +324,22 @@ def run_clustering(data, samples):
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
+    FEATURE_WEIGHTS = {
+        "mean_ssrd":    0.25,
+        "mean_wind":    2.73,
+        "mean_imp_urb": 2.58,
+        "mean_tcd_urb": 0.37,
+        "density":      0.008,   
+        "log habitants":0.40,  
+        "elev sd":      1.0,    
+    }
+    weight_vec = np.array([FEATURE_WEIGHTS.get(c, 1.0) for c in feature_cols])
+    print(f"\n── Feature weights ──")
+    for c, w in zip(feature_cols, weight_vec):
+        print(f"  {c}: {w}")
+    X_scaled = X_scaled * weight_vec
+
+
     kmeans = KMeans(n_clusters=4, random_state=42)
     data["cluster"] = kmeans.fit_predict(X_scaled)
     print("\n── Clusters ──")
@@ -412,12 +428,15 @@ def plot_kmeans_clusters(X_scaled, X, cities, cluster_labels,
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    data, samples = build_features()
+
+    # data, samples = build_features() #run this if you have new data !! otherwise load csv
+    data = pd.read_csv("features_combined.csv")
+    samples = data.set_index("city")["samples"]  # reconstruct samples Series
 
     print("\n── Full feature table ──")
     feature_cols = [c for c in data.columns if c not in ("city_key", "samples", "cluster")]
     print(data[feature_cols].to_string(index=False))
 
-    data.to_csv("features_combined.csv", index=False)
+    # data.to_csv("features_combined.csv", index=False) #run this if you have new data !! otherwise load csv
     run_clustering(data, samples)
     plt.show()

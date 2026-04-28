@@ -32,8 +32,6 @@ from xgb_0_prep_params import MIN_TRAIN_SAMPLES, MIN_TEST_SAMPLES
 
 
 
-
-
 JJA2021_START = pd.Timestamp('2021-05-15', tz='UTC')
 JJA2021_END   = pd.Timestamp('2021-07-15', tz='UTC')
 JJA2020_START = pd.Timestamp('2020-05-15', tz='UTC')
@@ -42,7 +40,7 @@ JJA2020_END   = pd.Timestamp('2020-07-15', tz='UTC')
 
 def weighted_distance(training_cities, target_city):
     try:
-        with open("city_row_counts.json") as f:
+        with open("../data_processing/city_row_counts.json") as f:
             row_counts = json.load(f)
     except FileNotFoundError:
         return None
@@ -59,7 +57,7 @@ def weighted_distance(training_cities, target_city):
     return total_weighted / total_rows if total_rows > 0 else None
 
 
-def compute_city_rankings(excel_path='climate_data.xlsx'):
+def compute_city_rankings(excel_path='../data_processing/climate_data.xlsx'):
     data_raw = pd.read_excel(excel_path, index_col=0)
     data_raw = data_raw.drop('samples')
     data = data_raw.T.reset_index().rename(columns={'index': 'city'})
@@ -77,6 +75,22 @@ def compute_city_rankings(excel_path='climate_data.xlsx'):
     return rankings, dist_matrix, cities
 
 CITY_RANKINGS, _dist_matrix, _dist_cities = compute_city_rankings()
+
+CITY_RANKINGS = {
+    'amsterdam': ['rennes', 'birmingham', 'berlin', 'ghent', 'turku', 'basel', 'freiburg', 'zurich', 'biel', 'bern', 'novisad'],
+    'basel': ['freiburg', 'zurich', 'bern', 'biel', 'rennes', 'berlin', 'turku', 'birmingham', 'ghent', 'amsterdam', 'novisad'],
+    'berlin': ['birmingham', 'turku', 'rennes', 'ghent', 'basel', 'freiburg', 'amsterdam', 'zurich', 'biel', 'bern', 'novisad'],
+    'bern': ['zurich', 'biel', 'freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    'biel': ['bern', 'zurich', 'freiburg', 'basel', 'turku', 'berlin', 'novisad', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    'birmingham': ['berlin', 'ghent', 'rennes', 'turku', 'amsterdam', 'freiburg', 'basel', 'zurich', 'novisad', 'biel', 'bern'],
+    'freiburg': ['basel', 'zurich', 'biel', 'bern', 'berlin', 'turku', 'rennes', 'birmingham', 'ghent', 'novisad', 'amsterdam'],
+    'ghent': ['turku', 'birmingham', 'berlin', 'novisad', 'rennes', 'freiburg', 'basel', 'zurich', 'amsterdam', 'biel', 'bern'],
+    'novisad': ['turku', 'ghent', 'bern', 'biel', 'zurich', 'berlin', 'birmingham', 'freiburg', 'basel', 'rennes', 'amsterdam'],
+    'rennes': ['berlin', 'amsterdam', 'birmingham', 'basel', 'freiburg', 'turku', 'ghent', 'zurich', 'biel', 'bern', 'novisad'],
+    'turku': ['ghent', 'berlin', 'birmingham', 'novisad', 'freiburg', 'rennes', 'zurich', 'basel', 'bern', 'biel', 'amsterdam'],
+    'zurich': ['bern', 'freiburg', 'basel', 'biel', 'turku', 'berlin', 'rennes', 'ghent', 'birmingham', 'novisad', 'amsterdam'],
+}
+
 _city_index = {c.lower().replace(' ',''): i for i, c in enumerate(_dist_cities)}
 
 
@@ -95,7 +109,7 @@ CITY_COUNTRIES = {
     'zurich': 'switzerland',
 }
 
-SPLIT_TYPE_RUN = 'jja2021'  # change here only   last_year   jja2021  spatial  jja2020
+SPLIT_TYPE_RUN = 'jja2020'  # change here only   last_year   jja2021  spatial  jja2020
 NO_PREJJA_CITIES = {'biel', 'freiburg'} 
 
 GEO_SPLIT_CONFIGS = [
@@ -111,7 +125,7 @@ USE_GEO_SPLIT = True  # toggle here
 
 
 def _load_base(city):
-    path = f"dataframes_ready/tablex_{city}.pkl"
+    path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
     if not os.path.exists(path):
         return None
     return pd.read_pickle(path)
@@ -419,7 +433,7 @@ def main():
                 else:  # spatial, jja2020
                     test_suffix = ''  # full pickle
 
-                test_path = f"dataframes_ready/tablex_{target_city}{test_suffix}.pkl"
+                test_path = f"../data_processing/dataframes_ready/tablex_{target_city}{test_suffix}.pkl"
                 if os.path.exists(test_path) and pd.read_pickle(test_path).shape[0] > 0:
                     test_success = run_script(
                         'xgb_d_check.py',

@@ -74,8 +74,8 @@ if __name__ == "__main__":
     def load_city_data(city_name, is_eval=False):
         """Load and temporally slice data for a city based on split_type."""
         if split_type == 'jja2021':
-            tx_full = pd.read_pickle(f"dataframes_ready/tablex_{city_name}.pkl")
-            ty_full = pd.read_pickle(f"dataframes_ready/tabley_{city_name}.pkl")
+            tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
+            ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
             if is_eval:
                 mask = (tx_full['Time_UTC'] >= JJA2021_START) & (tx_full['Time_UTC'] < JJA2021_END)
             else:
@@ -86,8 +86,8 @@ if __name__ == "__main__":
             print(f"  {city_name}: {period} ({len(tx):,} rows)")
 
         elif split_type == 'jja2020':
-            tx_full = pd.read_pickle(f"dataframes_ready/tablex_{city_name}.pkl")
-            ty_full = pd.read_pickle(f"dataframes_ready/tabley_{city_name}.pkl")
+            tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
+            ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
             if is_eval:
                 # Validation: only JJA 2020 (Jun–Aug 2020)
                 JJA2020_END = pd.Timestamp('2020-07-15', tz='UTC')
@@ -101,8 +101,8 @@ if __name__ == "__main__":
             print(f"  {city_name}: {period} ({len(tx):,} rows)")
 
         elif split_type == 'last_year':
-            tx_full = pd.read_pickle(f"dataframes_ready/tablex_{city_name}.pkl")
-            ty_full = pd.read_pickle(f"dataframes_ready/tabley_{city_name}.pkl")
+            tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
+            ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
             if is_eval:
                 cutoff_end = train_cutoff + pd.DateOffset(years=1)
                 mask = (tx_full['Time_UTC'] >= train_cutoff) & (tx_full['Time_UTC'] < cutoff_end)
@@ -114,8 +114,8 @@ if __name__ == "__main__":
             print(f"  {city_name}: data {period} ({len(tx):,} rows)")
 
         else:  # spatial
-            tx = pd.read_pickle(f"dataframes_ready/tablex_{city_name}.pkl")
-            ty = pd.read_pickle(f"dataframes_ready/tabley_{city_name}.pkl")
+            tx = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
+            ty = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
 
         return tx, ty
 
