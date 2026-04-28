@@ -30,27 +30,14 @@ from xgb_0_prep_params import MIN_TRAIN_SAMPLES, MIN_TEST_SAMPLES
 # }
 
 
-# CITY_RANKINGS = {
-#     'amsterdam': ['ghent', 'birmingham', 'rennes', 'berlin', 'basel', 'novisad', 'turku', 'bern', 'zurich', 'freiburg', 'biel'],
-#     'basel': ['novisad', 'freiburg', 'zurich', 'birmingham', 'berlin', 'rennes', 'ghent', 'bern', 'amsterdam', 'biel', 'turku'],
-#     'berlin': ['rennes', 'birmingham', 'novisad', 'ghent', 'amsterdam', 'basel', 'turku', 'freiburg', 'zurich', 'bern', 'biel'],
-#     'bern': ['biel', 'zurich', 'birmingham', 'basel', 'freiburg', 'ghent', 'amsterdam', 'rennes', 'berlin', 'novisad', 'turku'],
-#     'biel': ['bern', 'zurich', 'basel', 'freiburg', 'rennes', 'berlin', 'novisad', 'birmingham', 'amsterdam', 'turku', 'ghent'],
-#     'birmingham': ['amsterdam', 'ghent', 'berlin', 'rennes', 'basel', 'freiburg', 'turku', 'zurich', 'biel', 'novisad', 'bern'],
-#     'freiburg': ['basel', 'zurich', 'biel', 'bern', 'rennes', 'berlin', 'amsterdam', 'birmingham', 'novisad', 'ghent', 'turku'],
-#     'ghent': ['amsterdam', 'birmingham', 'berlin', 'rennes', 'basel', 'freiburg', 'novisad', 'zurich', 'biel', 'turku', 'bern'],
-#     'novisad': ['basel', 'berlin', 'zurich', 'freiburg', 'rennes', 'biel', 'ghent', 'bern', 'birmingham', 'amsterdam', 'turku'],
-#     'rennes': ['berlin', 'birmingham', 'amsterdam', 'basel', 'ghent', 'freiburg', 'zurich', 'biel', 'novisad', 'bern', 'turku'],
-#     'turku': ['berlin', 'amsterdam', 'birmingham', 'basel', 'freiburg', 'rennes', 'zurich', 'biel', 'ghent', 'bern', 'novisad'],
-#     'zurich': ['biel', 'bern', 'basel', 'freiburg', 'rennes', 'novisad', 'berlin', 'birmingham', 'amsterdam', 'ghent', 'turku'],
-# }
 
 
 
-JJA2021_START = pd.Timestamp('2021-06-01', tz='UTC')
-JJA2021_END   = pd.Timestamp('2021-09-01', tz='UTC')
-JJA2020_START = pd.Timestamp('2020-06-01', tz='UTC')
-JJA2020_END   = pd.Timestamp('2020-09-01', tz='UTC')
+
+JJA2021_START = pd.Timestamp('2021-05-15', tz='UTC')
+JJA2021_END   = pd.Timestamp('2021-07-15', tz='UTC')
+JJA2020_START = pd.Timestamp('2020-05-15', tz='UTC')
+JJA2020_END   = pd.Timestamp('2020-07-15', tz='UTC')
 
 
 def weighted_distance(training_cities, target_city):

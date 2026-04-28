@@ -51,12 +51,12 @@ if __name__ == "__main__":
 
     city_row_counts = {}
 
-    JJA2021_START = pd.Timestamp('2021-06-01', tz='UTC')
-    JJA2021_END   = pd.Timestamp('2021-09-01', tz='UTC')
-    JJA2020_START = pd.Timestamp('2020-06-01', tz='UTC')  # already used as JJA2020_TRAIN_CUTOFF
+    JJA2021_START = pd.Timestamp('2021-05-15', tz='UTC')
+    JJA2021_END   = pd.Timestamp('2021-07-15', tz='UTC')
+    JJA2020_START = pd.Timestamp('2020-05-15', tz='UTC')  # already used as JJA2020_TRAIN_CUTOFF
 
     split_type = os.environ.get('SPLIT_TYPE', SPLIT_TYPE)
-    JJA2020_TRAIN_CUTOFF = pd.Timestamp('2020-06-01', tz='UTC')
+    JJA2020_TRAIN_CUTOFF = pd.Timestamp('2020-05-15', tz='UTC')
 
     if split_type == 'last_year':
         target_city = os.environ.get('PIPELINE_TARGET_CITY', '').lower()
@@ -90,7 +90,7 @@ if __name__ == "__main__":
             ty_full = pd.read_pickle(f"dataframes_ready/tabley_{city_name}.pkl")
             if is_eval:
                 # Validation: only JJA 2020 (Jun–Aug 2020)
-                JJA2020_END = pd.Timestamp('2020-09-01', tz='UTC')
+                JJA2020_END = pd.Timestamp('2020-07-15', tz='UTC')
                 mask = (tx_full['Time_UTC'] >= JJA2020_TRAIN_CUTOFF) & (tx_full['Time_UTC'] < JJA2020_END)
             else:
                 # Training: everything before JJA 2020

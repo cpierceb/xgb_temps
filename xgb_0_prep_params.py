@@ -21,9 +21,9 @@ else:
     city = "novisad"
     country = "serbia" 
 
-TRAIN_CUT_DATE = pd.Timestamp('2021-06-01', tz='UTC')
-JJA_END_DATE   = pd.Timestamp('2021-09-01', tz='UTC')
-SPLIT_TYPE = 'spatial'  # or 'last_year' 'jja2021' 'spatial' 'jja2020'
+TRAIN_CUT_DATE = pd.Timestamp('2020-05-15', tz='UTC')
+JJA_END_DATE   = pd.Timestamp('2020-07-15', tz='UTC')
+SPLIT_TYPE = 'jja2020'  # or 'last_year' 'jja2021' 'spatial' 'jja2020'
 MIN_TRAIN_SAMPLES = 10000
 MIN_TEST_SAMPLES = 10000
 
