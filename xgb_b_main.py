@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     if split_type == 'last_year':
         target_city = os.environ.get('PIPELINE_TARGET_CITY', '').lower()
-        with open("city_test_cutoffs.json") as f:
+        with open("../data_processing/city_test_cutoffs.json") as f:
             cutoffs = json.load(f)
         train_cutoff = pd.Timestamp(cutoffs[target_city])
     elif split_type == 'jja2020':
@@ -103,14 +103,15 @@ if __name__ == "__main__":
         elif split_type == 'last_year':
             tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
             ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
+            val_start = train_cutoff - pd.DateOffset(years=1)
             if is_eval:
-                cutoff_end = train_cutoff + pd.DateOffset(years=1)
-                mask = (tx_full['Time_UTC'] >= train_cutoff) & (tx_full['Time_UTC'] < cutoff_end)
+                mask = (tx_full['Time_UTC'] >= val_start) & (tx_full['Time_UTC'] < train_cutoff)
             else:
-                mask = tx_full['Time_UTC'] < train_cutoff
+                mask = tx_full['Time_UTC'] < val_start
+            period = f"{val_start.date()} – {train_cutoff.date()}" if is_eval else f"< {val_start.date()}"
             tx = tx_full[mask].reset_index(drop=True)
             ty = ty_full[mask].reset_index(drop=True)
-            period = f">= {train_cutoff.date()}" if is_eval else f"< {train_cutoff.date()}"
+            # period = f">= {train_cutoff.date()}" if is_eval else f"< {train_cutoff.date()}"
             print(f"  {city_name}: data {period} ({len(tx):,} rows)")
 
         else:  # spatial

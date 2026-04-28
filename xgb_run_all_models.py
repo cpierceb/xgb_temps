@@ -71,7 +71,7 @@ def compute_city_rankings(excel_path='../data_processing/climate_data.xlsx'):
         dists[i] = np.inf
         sorted_idx = np.argsort(dists)[:-1]  # drop self
         neighbors = [cities[j].lower().replace(' ', '') for j in sorted_idx]
-        rankings[city.lower().replace(' ', '')] = neighbors
+        rankings[city.lower().replace(' ',       '')] = neighbors
     return rankings, dist_matrix, cities
 
 CITY_RANKINGS, _dist_matrix, _dist_cities = compute_city_rankings()
@@ -109,7 +109,7 @@ CITY_COUNTRIES = {
     'zurich': 'switzerland',
 }
 
-SPLIT_TYPE_RUN = 'jja2020'  # change here only   last_year   jja2021  spatial  jja2020
+SPLIT_TYPE_RUN = 'last_year'  # change here only   last_year   jja2021  spatial  jja2020
 NO_PREJJA_CITIES = {'biel', 'freiburg'} 
 
 GEO_SPLIT_CONFIGS = [
@@ -142,11 +142,12 @@ def has_eval_data(city, split_type, target_city=None):
         return ((tx['Time_UTC'] >= JJA2020_START) & (tx['Time_UTC'] < JJA2020_END)).sum() >= MIN_TRAIN_SAMPLES
     elif split_type == 'last_year':
         try:
-            with open("city_test_cutoffs.json") as f:
+            with open("../data_processing/city_test_cutoffs.json") as f:
                 cutoff = pd.Timestamp(json.load(f)[target_city])
         except (FileNotFoundError, KeyError):
             return False
-        return (tx['Time_UTC'] >= cutoff).sum() >= MIN_TRAIN_SAMPLES
+        val_start = cutoff - pd.DateOffset(years=1)
+        return ((tx['Time_UTC'] >= val_start) & (tx['Time_UTC'] < cutoff)).sum() >= MIN_TRAIN_SAMPLES
     else:  # spatial
         return len(tx) >= MIN_TRAIN_SAMPLES
 
@@ -160,11 +161,12 @@ def has_train_data(city, split_type, target_city=None):
         return (tx['Time_UTC'] < JJA2020_START).sum() >= MIN_TRAIN_SAMPLES
     elif split_type == 'last_year':
         try:
-            with open("city_test_cutoffs.json") as f:
+            with open("../data_processing/city_test_cutoffs.json") as f:
                 cutoff = pd.Timestamp(json.load(f)[target_city])
         except (FileNotFoundError, KeyError):
             return False
-        return (tx['Time_UTC'] < cutoff).sum() >= MIN_TRAIN_SAMPLES
+        val_start = cutoff - pd.DateOffset(years=1)
+        return (tx['Time_UTC'] < val_start).sum() >= MIN_TRAIN_SAMPLES
     else:  # spatial
         return len(tx) >= MIN_TRAIN_SAMPLES
 
@@ -195,7 +197,7 @@ def has_enough_test_data(city):
         n = ((tx['Time_UTC'] >= JJA2020_START) & (tx['Time_UTC'] < JJA2020_END)).sum()
     elif SPLIT_TYPE_RUN == 'last_year':
         try:
-            with open("city_test_cutoffs.json") as f:
+            with open("../data_processing/city_test_cutoffs.json") as f:
                 cutoff = pd.Timestamp(json.load(f)[city])
         except (FileNotFoundError, KeyError):
             return False
