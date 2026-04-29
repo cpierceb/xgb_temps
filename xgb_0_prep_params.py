@@ -23,7 +23,7 @@ else:
 
 TRAIN_CUT_DATE = pd.Timestamp('2021-05-15', tz='UTC')
 JJA_END_DATE   = pd.Timestamp('2021-07-15', tz='UTC')
-SPLIT_TYPE = 'last_year'  # or 'last_year' 'jja2021' 'spatial' 'jja2020'
+SPLIT_TYPE = 'jja2021'  # or 'last_year' 'jja2021' 'spatial' 'jja2020'
 MIN_TRAIN_SAMPLES = 5000
 MIN_TEST_SAMPLES = 5000
 
