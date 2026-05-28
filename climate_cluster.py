@@ -36,6 +36,9 @@ SPATIAL_CACHE = "cache_spatial.csv"
 LCZ_PATH = "../tiffs/lcz/{city}_100.tif"
 TCD_PATH = "../tiffs/tcd/{city}_100.tif"
 IMP_PATH = "../tiffs/imp/{city}_100.tif"
+DEM_PATH      = "../tiffs/dtm/{city}_30.tif"
+DEM_STD_CACHE = "cache_dem_std.csv"
+EU_LCZ_PATH   = "../tiffs/lcz/EU_LCZ_map.tif"
 
 URBAN_LCZ = set(range(1, 11))
 
@@ -56,6 +59,37 @@ CITIES = {
     # "oslo":     {"lat": 59.9139, "lon": 10.7522, "area_km2": 244},
     # "naples":   {"lat": 40.8518, "lon": 14.2681, "area_km2": 618},
     # "barcelona":{"lat": 41.3851, "lon":  2.1734, "area_km2": 438},
+    "fribourg": {"lat": 46.79943, "lon": 7.14907, "area_km2": 18},
+    "geneva":   {"lat": 46.201667, "lon": 6.146944, "area_km2": 74},
+    "lausanne":   {"lat": 46.52, "lon": 6.633333, "area_km2": 75},
+    "lugano":   {"lat": 46.005, "lon": 8.9525, "area_km2": 28},
+    "luzern":   {"lat": 47.05140, "lon": 8.29463, "area_km2": 37},
+    "stgallen":   {"lat": 47.42498, "lon": 9.37220, "area_km2": 17},
+    "thun": {"lat": 46.75878, "lon": 7.62056, "area_km2": 26},
+    "winterthur":{"lat": 47.498889, "lon":  8.728611, "area_km2": 30},
+}
+
+CITY_STATS = {
+    "amsterdam":  {"log_habitants": 6.09, "density": 3972},
+    "basel":      {"log_habitants": 5.46, "density": 4203},
+    "berlin":     {"log_habitants": 6.55, "density": 5213},
+    "bern":       {"log_habitants": 5.29, "density": 3583},
+    "biel":       {"log_habitants": 4.85, "density": 3970},
+    "birmingham": {"log_habitants": 6.42, "density": 3821},
+    "freiburg":   {"log_habitants": 5.38, "density": 4762},
+    "ghent":      {"log_habitants": 5.40, "density": 2664},
+    "novisad":    {"log_habitants": 5.46, "density": 4860},
+    "rennes":     {"log_habitants": 5.40, "density": 4420},
+    "turku":      {"log_habitants": 5.02, "density": 4533},
+    "zurich":     {"log_habitants": 5.84, "density": 3686},
+    "lausanne":   {"log_habitants": 5.46, "density": 3852},   
+    "winterthur": {"log_habitants": 5.01, "density": 3408}, 
+    "fribourg":   {"log_habitants": 4.83, "density": 3793},   
+    "geneva":     {"log_habitants": 5.64, "density": 5861},  
+    "lugano":     {"log_habitants": 4.96, "density": 3286},  
+    "luzern":     {"log_habitants": 5.17, "density": 3962},
+    "thun":       {"log_habitants": 4.85, "density": 2727}, 
+    "stgallen":   {"log_habitants": 4.84, "density": 4081},  
 }
 
 to_3035 = Transformer.from_crs("EPSG:4326", "EPSG:3035", always_xy=True)
@@ -128,6 +162,52 @@ def era5_metrics_from_accum(accum, key):
 
 
 # ── Spatial extraction (TCD + IMP in urban cells) ────────────────────────────
+def crop_lcz_if_missing(city, lat, lon, area_km2):
+    """Crop EU_LCZ_map.tif to city bounding box if city LCZ tif doesn't exist."""
+    out_path = LCZ_PATH.format(city=city)
+    if os.path.exists(out_path):
+        return
+
+    print(f"  [LCZ] {out_path} not found — cropping from {EU_LCZ_PATH}")
+    cx, cy = to_3035.transform(lon, lat)
+    half = (np.sqrt(area_km2) / 2 + 5) * 1000
+    left, right  = cx - half, cx + half
+    bottom, top  = cy - half, cy + half
+
+    with rasterio.open(EU_LCZ_PATH) as src:
+        from rasterio.warp import reproject, Resampling
+        from rasterio.transform import from_origin
+
+        dst_res = 100  # metres — matches the _100.tif convention
+        dst_width  = int(np.ceil((right - left)  / dst_res))
+        dst_height = int(np.ceil((top  - bottom) / dst_res))
+        dst_transform = from_origin(left, top, dst_res, dst_res)
+        dst_crs = rasterio.CRS.from_epsg(3035)
+
+        nodata = src.nodata if src.nodata is not None else 255
+        dst_data = np.full((1, dst_height, dst_width), nodata,
+                           dtype=src.dtypes[0])
+
+        reproject(
+            source      = rasterio.band(src, 1),
+            destination = dst_data,
+            src_crs       = src.crs,
+            dst_crs       = dst_crs,
+            dst_transform = dst_transform,
+            resampling    = Resampling.nearest,
+            src_nodata    = nodata,
+            dst_nodata    = nodata,
+        )
+
+    profile = {
+        "driver": "GTiff", "dtype": src.dtypes[0], "nodata": nodata,
+        "width": dst_width, "height": dst_height, "count": 1,
+        "crs": dst_crs, "transform": dst_transform, "compress": "lzw",
+    }
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with rasterio.open(out_path, "w", **profile) as dst:
+        dst.write(dst_data)
+    print(f"  [LCZ] written → {out_path}")
 
 def city_box_3035(lat, lon, area_km2):
     cx, cy = to_3035.transform(lon, lat)
@@ -150,6 +230,7 @@ def sample_tiff_in_box(tiff_path, box_3035, n_points=500):
 
 
 def get_spatial_metrics(city, lat, lon, area_km2):
+    crop_lcz_if_missing(city, lat, lon, area_km2)
     box = city_box_3035(lat, lon, area_km2)
 
     lcz_path = LCZ_PATH.format(city=city)
@@ -193,6 +274,40 @@ def get_spatial_metrics(city, lat, lon, area_km2):
 
     return mean_tcd, mean_imp
 
+def compute_city_elev_std(city, lat, lon, area_km2):
+    """Sample 30m DEM inside the city bounding box and return nanstd."""
+    dem_path = DEM_PATH.format(city=city)
+    if not os.path.exists(dem_path):
+        print(f"  [DEM] ⚠ not found: {dem_path}")
+        return np.nan
+    box = city_box_3035(lat, lon, area_km2)
+    _, vals = sample_tiff_in_box(dem_path, box, n_points=500)
+    std = float(np.nanstd(vals))
+    print(f"  [DEM] {city}: elev std = {std:.1f} m")
+    return std
+
+
+def load_or_compute_dem_std(known_keys):
+    if os.path.exists(DEM_STD_CACHE):
+        cache = pd.read_csv(DEM_STD_CACHE, index_col="city_key")
+        print(f"  [DEM cache] loaded {len(cache)} cities from {DEM_STD_CACHE}")
+    else:
+        cache = pd.DataFrame(columns=["city_key", "elev_sd"]).set_index("city_key")
+
+    missing_keys = [k for k in known_keys if k not in cache.index]
+    if missing_keys:
+        print(f"  [DEM cache] computing {len(missing_keys)} new cities: {missing_keys}")
+        new_rows = []
+        for key in missing_keys:
+            info = CITIES[key]
+            std = compute_city_elev_std(key, info["lat"], info["lon"], info["area_km2"])
+            new_rows.append({"city_key": key, "elev_sd": std})
+        cache = pd.concat([cache, pd.DataFrame(new_rows).set_index("city_key")])
+        cache.to_csv(DEM_STD_CACHE)
+        print(f"  [DEM cache] saved → {DEM_STD_CACHE}")
+    else:
+        print(f"  [DEM cache] all cities cached — skipping")
+    return cache
 
 # ── Build feature table ───────────────────────────────────────────────────────
 def load_or_compute_era5(known_keys):
@@ -251,49 +366,32 @@ def load_or_compute_spatial(known_keys):
     return cache
 
 def build_features():
-    # --- Excel ---
-    print("\n── Loading Excel ──")
-    data_raw = pd.read_excel(EXCEL_PATH, index_col=0)
-    samples = data_raw.loc["samples"].copy()
-    samples.index = samples.index.str.capitalize()
-    samples.index = samples.index.str.replace("Novisad", "Novi Sad")
+    known_keys = list(CITIES.keys())
 
-    data_raw = data_raw.drop("samples")
-    data = data_raw.T.reset_index().rename(columns={"index": "city"})
-    data["city"] = data["city"].str.capitalize().replace("Novisad", "Novi Sad")
-    data["samples"] = data["city"].map(samples)
-    data["city_key"] = data["city"].str.lower().str.replace(" ", "")
-    print(f"  {len(data)} cities loaded from Excel: {list(data['city'])}")
-
-    # Filter to cities we have config for
-    known_keys = [k for k in data["city_key"] if k in CITIES]
-    unknown    = [k for k in data["city_key"] if k not in CITIES]
-    if unknown:
-        print(f"  ⚠ no CITIES config for: {unknown} — will fill NaN")
-
-    # --- ERA5: single pass over all files ---
-    # --- ERA5 (cached) ---
     era5_cache    = load_or_compute_era5(known_keys)
     spatial_cache = load_or_compute_spatial(known_keys)
+    dem_cache     = load_or_compute_dem_std(known_keys)
 
-    # --- Merge into data ---
-    wind_col, ssrd_col, tcd_col, imp_col = [], [], [], []
-    for _, row in data.iterrows():
-        key = row["city_key"]
-        if key not in CITIES or key not in era5_cache.index:
-            wind_col.append(np.nan); ssrd_col.append(np.nan)
-            tcd_col.append(np.nan);  imp_col.append(np.nan)
-            continue
-        wind_col.append(era5_cache.loc[key, "mean_wind"])
-        ssrd_col.append(era5_cache.loc[key, "mean_ssrd"])
-        tcd_col.append(spatial_cache.loc[key, "mean_tcd_urb"] if key in spatial_cache.index else np.nan)
-        imp_col.append(spatial_cache.loc[key, "mean_imp_urb"] if key in spatial_cache.index else np.nan)
+    rows = []
+    for key in known_keys:
+        info  = CITIES[key]
+        stats = CITY_STATS.get(key, {})
+        row = {
+            "city":     key.capitalize().replace("Novisad", "Novi Sad")
+                           .replace("Zurich", "Zürich"),
+            "city_key": key,
+            "log habitants": stats.get("log_habitants", np.nan),
+            "density":       stats.get("density",       np.nan),
+            "elev sd":   dem_cache.loc[key, "elev_sd"]       if key in dem_cache.index    else np.nan,
+            "mean_wind": era5_cache.loc[key, "mean_wind"]    if key in era5_cache.index   else np.nan,
+            "mean_ssrd": era5_cache.loc[key, "mean_ssrd"]    if key in era5_cache.index   else np.nan,
+            "mean_tcd_urb": spatial_cache.loc[key, "mean_tcd_urb"] if key in spatial_cache.index else np.nan,
+            "mean_imp_urb": spatial_cache.loc[key, "mean_imp_urb"] if key in spatial_cache.index else np.nan,
+        }
+        rows.append(row)
 
-    data["mean_wind"]    = wind_col
-    data["mean_ssrd"]    = ssrd_col
-    data["mean_tcd_urb"] = tcd_col
-    data["mean_imp_urb"] = imp_col
-
+    data = pd.DataFrame(rows)
+    samples = pd.Series(1, index=data["city"])  # placeholder; not used in clustering
     return data, samples
 
 
@@ -429,9 +527,9 @@ def plot_kmeans_clusters(X_scaled, X, cities, cluster_labels,
 
 if __name__ == "__main__":
 
-    # data, samples = build_features() #run this if you have new data !! otherwise load csv
-    data = pd.read_csv("features_combined.csv")
-    samples = data.set_index("city")["samples"]  # reconstruct samples Series
+    data, samples = build_features() #run this if you have new data !! otherwise load csv
+    # data = pd.read_csv("features_combined.csv")
+    # samples = data.set_index("city")["samples"]  # reconstruct samples Series
 
     print("\n── Full feature table ──")
     feature_cols = [c for c in data.columns if c not in ("city_key", "samples", "cluster")]
