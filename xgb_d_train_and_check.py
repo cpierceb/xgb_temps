@@ -14,7 +14,7 @@ from xgb_config import ModelConfig
 from xgb_0_prep_params import MIN_TRAIN_SAMPLES, MIN_TEST_SAMPLES
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-SPLIT_TYPE_RUN = 'jja2021'   # jja2021 | jja2020 | last_year | spatial
+SPLIT_TYPE_RUN = 'spatial'   # jja2021 | jja2020 | last_year | spatial
 TARGET_CITIES_TO_RUN = None #['basel']  # None = all, or e.g. ['amsterdam', 'berlin']
 N_EVAL   = 3
 N_TRAIN  = 6
@@ -137,6 +137,19 @@ CITY_RANKINGS = {
     'zurich': ['bern', 'freiburg', 'basel', 'biel', 'turku', 'berlin', 'rennes', 'ghent', 'birmingham', 'novisad', 'amsterdam'],
 }
 
+
+    'basel': ['freiburg', 'zurich', 'biel', 'bern', 'rennes', 'berlin', 'turku', 'birmingham', 'ghent', 'amsterdam', 'novisad'],
+    'bern': ['zurich', 'biel', 'freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    'biel': ['bern', 'zurich', 'freiburg', 'basel', 'turku', 'berlin', 'novisad', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    'zurich': ['bern', 'freiburg', 'basel', 'biel', 'turku', 'berlin', 'rennes', 'ghent', 'birmingham', 'novisad', 'amsterdam'],
+    'fribourg': ['bern', 'biel', 'novisad', 'zurich', 'turku', 'freiburg', 'ghent', 'basel', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    'geneva':   ['bern', 'biel', 'zurich', 'novisad', 'freiburg', 'turku', 'basel', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    'lausanne': ['bern', 'biel', 'zurich','freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'birmingham', 'rennes', 'amsterdam'],
+    'lugano':   ['bern', 'biel', 'zurich', 'novisad', 'freiburg', 'basel', 'turku', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    'luzern':   ['biel', 'bern', 'zurich', 'freiburg', 'basel', , 'turku', 'berlin', 'novisad', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    'stgallen': ['bern', 'biel', 'zurich', 'freiburg', 'basel', 'turku', 'berlin', 'novisad', 'ghent', 'birmingham', 'rennes', 'amsterdam'],
+    'thun':     ['bern', 'biel','zurich', 'novisad', 'freiburg', 'turku', 'basel', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    'winterthur': ['bern', 'zurich', 'biel', 'freiburg', 'basel', 'turku', 'berlin', 'ghent', 'novisad', 'birmingham', 'rennes', 'amsterdam'],
 
 def has_enough_data(city):
     path = (f"../data_processing/dataframes_ready/tablex_{city}_prejja2021.pkl"

@@ -64,18 +64,19 @@ features = [
     # "X3035", "Y3035", #2 3 
     # "BH_10", 
     "BH_100", 
-    "BH_100_250rad",
-    "DEM_30", 
-    "DEM_90", 
+    "BH_100_250rad", "BH_100_500rad",
+    # "DEM_30", 
+    # "DEM_90", 
+    "DTM_100"
     "LCZ_100", 
     "LCZ_water_500rad",
     # "LCZ_E", "LCZ_NE", "LCZ_N", "LCZ_NW", "LCZ_W", "LCZ_SW", "LCZ_S", "LCZ_SE",
     # "TCD_10", 
     "TCD_100",
-    "TCD_100_250rad",
+    "TCD_100_250rad","TCD_100_500rad",
     # "IMP_10", 
     "IMP_100",
-    "IMP_100_250rad",
+    "IMP_100_250rad","IMP_100_500rad",
     "t2m", "d2m", "ssrd" , "tp",#7 8 9 10
     "u10", "v10", "sp" , #11 12 13
     "swvl1", "swvl3", #14 15 
