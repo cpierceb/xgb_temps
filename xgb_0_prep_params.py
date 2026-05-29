@@ -23,7 +23,8 @@ else:
 
 TRAIN_CUT_DATE = pd.Timestamp('2021-05-15', tz='UTC')
 JJA_END_DATE   = pd.Timestamp('2021-07-15', tz='UTC')
-SPLIT_TYPE = 'jja2021'  # or 'last_year' 'jja2021' 'spatial' 'jja2020'
+# SPLIT_TYPE = 'jja2021'  # or 'last_year' 'jja2021' 'spatial' 'jja2020'
+SPLIT_TYPE = os.environ.get('SPLIT_TYPE')
 MIN_TRAIN_SAMPLES = 5000
 MIN_TEST_SAMPLES = 5000
 
@@ -67,7 +68,7 @@ features = [
     "BH_100_250rad", "BH_100_500rad",
     # "DEM_30", 
     # "DEM_90", 
-    "DTM_100"
+    "DTM_100",
     "LCZ_100", 
     "LCZ_water_500rad",
     # "LCZ_E", "LCZ_NE", "LCZ_N", "LCZ_NW", "LCZ_W", "LCZ_SW", "LCZ_S", "LCZ_SE",

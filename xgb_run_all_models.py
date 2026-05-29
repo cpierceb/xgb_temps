@@ -29,32 +29,29 @@ from xgb_0_prep_params import MIN_TRAIN_SAMPLES, MIN_TEST_SAMPLES
 #     'zurich': ['biel', 'bern', 'basel', 'freiburg', 'rennes', 'novisad', 'berlin', 'birmingham', 'amsterdam', 'ghent', 'turku'],
 # }
 
-
-
-
 JJA2021_START = pd.Timestamp('2021-05-15', tz='UTC')
 JJA2021_END   = pd.Timestamp('2021-07-15', tz='UTC')
 JJA2020_START = pd.Timestamp('2020-05-15', tz='UTC')
 JJA2020_END   = pd.Timestamp('2020-07-15', tz='UTC')
 
 
-def weighted_distance(training_cities, target_city):
-    try:
-        with open("../data_processing/city_row_counts.json") as f:
-            row_counts = json.load(f)
-    except FileNotFoundError:
-        return None
+# def weighted_distance(training_cities, target_city):
+#     try:
+#         with open("../data_processing/city_row_counts.json") as f:
+#             row_counts = json.load(f)
+#     except FileNotFoundError:
+#         return None
     
-    ti = _city_index[target_city.lower()]
-    total_rows, total_weighted = 0, 0.0
-    for city in training_cities:
-        ci = _city_index.get(city.lower())
-        n = row_counts.get(city, 0)
-        if ci is None or n == 0:
-            continue
-        total_weighted += n * _dist_matrix[ci, ti]
-        total_rows += n
-    return total_weighted / total_rows if total_rows > 0 else None
+#     ti = _city_index[target_city.lower()]
+#     total_rows, total_weighted = 0, 0.0
+#     for city in training_cities:
+#         ci = _city_index.get(city.lower())
+#         n = row_counts.get(city, 0)
+#         if ci is None or n == 0:
+#             continue
+#         total_weighted += n * _dist_matrix[ci, ti]
+#         total_rows += n
+#     return total_weighted / total_rows if total_rows > 0 else None
 
 
 def compute_city_rankings(excel_path='../data_processing/climate_data.xlsx'):
@@ -109,7 +106,7 @@ CITY_COUNTRIES = {
     'zurich': 'switzerland',
 }
 
-SPLIT_TYPE_RUN = 'last_year'  # change here only   last_year   jja2021  spatial  jja2020
+SPLIT_TYPE_RUN = 'jja2021'  # change here only   last_year   jja2021  spatial  jja2020
 NO_PREJJA_CITIES = {'biel', 'freiburg'} 
 
 GEO_SPLIT_CONFIGS = [
@@ -420,8 +417,8 @@ def main():
                 })
                 continue
 
-            wd = weighted_distance(model['cities'], target_city)
-            print(f"  Weighted euclidean distance to {target_city}: {wd:.4f}" if wd else "  Could not compute weighted distance")
+            # wd = weighted_distance(model['cities'], target_city)
+            # print(f"  Weighted euclidean distance to {target_city}: {wd:.4f}" if wd else "  Could not compute weighted distance")
 
 
             if model.get('geo_split'):

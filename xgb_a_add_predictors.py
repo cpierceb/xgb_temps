@@ -158,7 +158,7 @@ def add_geo(tablex, city, country, buffer_m=1000):
 
     return tablex
 
-def apply_altitude_correction(tablex, dem_column='DEM_90'):
+def apply_altitude_correction(tablex, dem_column='DTM_100'):
     """
     Apply altitude correction to temperature based on elevation difference
     between ERA5 geopotential height and local DEM elevation.
@@ -190,7 +190,7 @@ def apply_altitude_correction(tablex, dem_column='DEM_90'):
     return tablex
 
 
-def add_meteo(tablex, lat0, lon0, dem_column='DEM_90'):
+def add_meteo(tablex, lat0, lon0, dem_column='DTM_100'):
     """
     Updated add_meteo function that includes altitude correction.
     """

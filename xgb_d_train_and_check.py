@@ -14,13 +14,19 @@ from xgb_config import ModelConfig
 from xgb_0_prep_params import MIN_TRAIN_SAMPLES, MIN_TEST_SAMPLES
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-SPLIT_TYPE_RUN = 'spatial'   # jja2021 | jja2020 | last_year | spatial
+SPLIT_TYPE_RUN = 'jja2020'   # jja2021 | jja2020 | last_year | spatial
 TARGET_CITIES_TO_RUN = None #['basel']  # None = all, or e.g. ['amsterdam', 'berlin']
 N_EVAL   = 3
 N_TRAIN  = 6
 NO_PREJJA_CITIES = {'biel', 'freiburg'}
 NO_LASTYEAR_CITIES = {'biel', 'bern'}
 MODELS_DIR = 'geo36_models'  # where to save per-city models
+TEST_WINDOWS = {
+    'jja2021':   ('2021-07-15', '2021-09-15'),
+    'jja2020':   ('2020-07-15', '2020-09-15'),
+    'last_year': (None, None),  # xgb_d_check handles via its own cutoff logic
+    'spatial':   (None, None),
+}
 # ──────────────────────────────────────────────────────────────────────────────
 
 os.makedirs(MODELS_DIR, exist_ok=True)
@@ -59,9 +65,11 @@ def select_eval_and_train(ranked, n_eval, n_train, min_samples, split_type, targ
         if split_type == 'last_year' and city in NO_LASTYEAR_CITIES:
             return False
         if split_type == 'jja2021':
-            path = f"../data_processing/dataframes_ready/tablex_{city}_jja2021.pkl"
+            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
             if not os.path.exists(path): return False
-            return len(pd.read_pickle(path)) >= min_samples
+            tx = pd.read_pickle(path)
+            return ((tx['Time_UTC'] >= pd.Timestamp('2021-05-15', tz='UTC')) &
+                    (tx['Time_UTC'] <  pd.Timestamp('2021-07-15', tz='UTC'))).sum() >= min_samples
         elif split_type == 'jja2020':
             path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
             if not os.path.exists(path): return False
@@ -86,9 +94,10 @@ def select_eval_and_train(ranked, n_eval, n_train, min_samples, split_type, targ
 
     def has_train_data(city):
         if split_type == 'jja2021':
-            path = f"../data_processing/dataframes_ready/tablex_{city}_prejja2021.pkl"
+            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
             if not os.path.exists(path): return False
-            return len(pd.read_pickle(path)) >= min_samples
+            tx = pd.read_pickle(path)
+            return (tx['Time_UTC'] < pd.Timestamp('2021-05-15', tz='UTC')).sum() >= min_samples
         elif split_type == 'jja2020':
             path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
             if not os.path.exists(path): return False
@@ -138,23 +147,21 @@ CITY_RANKINGS = {
 }
 
 
-    'basel': ['freiburg', 'zurich', 'biel', 'bern', 'rennes', 'berlin', 'turku', 'birmingham', 'ghent', 'amsterdam', 'novisad'],
-    'bern': ['zurich', 'biel', 'freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
-    'biel': ['bern', 'zurich', 'freiburg', 'basel', 'turku', 'berlin', 'novisad', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
-    'zurich': ['bern', 'freiburg', 'basel', 'biel', 'turku', 'berlin', 'rennes', 'ghent', 'birmingham', 'novisad', 'amsterdam'],
-    'fribourg': ['bern', 'biel', 'novisad', 'zurich', 'turku', 'freiburg', 'ghent', 'basel', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
-    'geneva':   ['bern', 'biel', 'zurich', 'novisad', 'freiburg', 'turku', 'basel', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
-    'lausanne': ['bern', 'biel', 'zurich','freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'birmingham', 'rennes', 'amsterdam'],
-    'lugano':   ['bern', 'biel', 'zurich', 'novisad', 'freiburg', 'basel', 'turku', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
-    'luzern':   ['biel', 'bern', 'zurich', 'freiburg', 'basel', , 'turku', 'berlin', 'novisad', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
-    'stgallen': ['bern', 'biel', 'zurich', 'freiburg', 'basel', 'turku', 'berlin', 'novisad', 'ghent', 'birmingham', 'rennes', 'amsterdam'],
-    'thun':     ['bern', 'biel','zurich', 'novisad', 'freiburg', 'turku', 'basel', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
-    'winterthur': ['bern', 'zurich', 'biel', 'freiburg', 'basel', 'turku', 'berlin', 'ghent', 'novisad', 'birmingham', 'rennes', 'amsterdam'],
+    # 'basel': ['freiburg', 'zurich', 'biel', 'bern', 'rennes', 'berlin', 'turku', 'birmingham', 'ghent', 'amsterdam', 'novisad'],
+    # 'bern': ['zurich', 'biel', 'freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    # 'biel': ['bern', 'zurich', 'freiburg', 'basel', 'turku', 'berlin', 'novisad', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    # 'zurich': ['bern', 'freiburg', 'basel', 'biel', 'turku', 'berlin', 'rennes', 'ghent', 'birmingham', 'novisad', 'amsterdam'],
+    # 'fribourg': ['bern', 'biel', 'novisad', 'zurich', 'turku', 'freiburg', 'ghent', 'basel', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    # 'geneva':   ['bern', 'biel', 'zurich', 'novisad', 'freiburg', 'turku', 'basel', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    # 'lausanne': ['bern', 'biel', 'zurich','freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'birmingham', 'rennes', 'amsterdam'],
+    # 'lugano':   ['bern', 'biel', 'zurich', 'novisad', 'freiburg', 'basel', 'turku', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    # 'luzern':   ['biel', 'bern', 'zurich', 'freiburg', 'basel', , 'turku', 'berlin', 'novisad', 'ghent', 'rennes', 'birmingham', 'amsterdam'],
+    # 'stgallen': ['bern', 'biel', 'zurich', 'freiburg', 'basel', 'turku', 'berlin', 'novisad', 'ghent', 'birmingham', 'rennes', 'amsterdam'],
+    # 'thun':     ['bern', 'biel','zurich', 'novisad', 'freiburg', 'turku', 'basel', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    # 'winterthur': ['bern', 'zurich', 'biel', 'freiburg', 'basel', 'turku', 'berlin', 'ghent', 'novisad', 'birmingham', 'rennes', 'amsterdam'],
 
 def has_enough_data(city):
-    path = (f"../data_processing/dataframes_ready/tablex_{city}_prejja2021.pkl"
-            if SPLIT_TYPE_RUN == 'jja2021'
-            else f"../data_processing/dataframes_ready/tablex_{city}.pkl")
+    path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
     if not os.path.exists(path):
         return False
     return len(pd.read_pickle(path)) >= MIN_TRAIN_SAMPLES
@@ -251,22 +258,22 @@ def main():
 
         # ── Test (xgb_d_check) ─────────────────────────────────────────────
         # Determine test path to confirm data exists
-        if SPLIT_TYPE_RUN == 'jja2021':
-            test_path = f"../data_processing/dataframes_ready/tablex_{target_city}_jja2021.pkl"
-        elif SPLIT_TYPE_RUN == 'last_year':
-            test_path = f"../data_processing/dataframes_ready/tablex_{target_city}_test_lastyear.pkl"
-        else:  # spatial, jja2020
-            test_path = f"../data_processing/dataframes_ready/tablex_{target_city}.pkl"
+        test_path = f"../data_processing/dataframes_ready/tablex_{target_city}.pkl"
 
         if not os.path.exists(test_path):
             print(f"  Skipping test: {test_path} not found")
             results.append({'city': target_city, 'train': True, 'test': None})
             continue
 
+
+        test_start, test_end = TEST_WINDOWS[SPLIT_TYPE_RUN]
+
         test_env = {
             **base_env,
             'PIPELINE_USE_JJA':    'true',
-            'PIPELINE_MODEL_NAME': model_path,   # so xgb_d_check loads this model
+            'PIPELINE_MODEL_NAME': model_path,
+            'PIPELINE_TEST_START': test_start or '',
+            'PIPELINE_TEST_END':   test_end   or '',
         }
         test_ok = run_script('xgb_d_check.py',
                              f"Test geo_3_6 — {target_city}", test_env)
