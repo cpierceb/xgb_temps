@@ -4,8 +4,8 @@ from xgb_0_prep_params import *
 from xgb_a_add_predictors import *
 
 if __name__ == "__main__":
-    tablex = pd.read_pickle(f"../data_processing/dataframes/tablex_{city}.pkl")
-    tabley = pd.read_pickle(f"../data_processing/dataframes/tabley_{city}.pkl")
+    tablex = pd.read_pickle(f"../data_processing/dataframes/tablex_urs_{city}.pkl")
+    tabley = pd.read_pickle(f"../data_processing/dataframes/tabley_urs_{city}.pkl")
 
     print(f"predictor table before NaN treatment for {city}:",tablex)
     print(f"predictand table before NaN treatment for {city}:",tabley)
@@ -42,4 +42,4 @@ if __name__ == "__main__":
 
     for name in ["tablex", "tabley"]:
         df = globals()[name]
-        df.to_pickle(f"../data_processing/dataframes_ready/{name}_{city}.pkl")
+        df.to_pickle(f"../data_processing/dataframes_ready/{name}_urs_{city}.pkl")

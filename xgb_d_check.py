@@ -31,44 +31,53 @@ os.makedirs(output_dir, exist_ok=True)
 print("---------2. Preprocessing tables-----------")
 
 split_type = os.environ.get('SPLIT_TYPE', SPLIT_TYPE)
+test_type = os.environ.get('TEST_TYPE', TEST_TYPE)
 use_jja = os.environ.get('PIPELINE_USE_JJA', 'false').lower() == 'true'
 
-if use_jja:
-    if split_type == 'jja2021':
-        JJA2021_START = pd.Timestamp('2021-07-15', tz='UTC')
-        JJA2021_END   = pd.Timestamp('2021-09-15', tz='UTC')
-        tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city}.pkl")
-        ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city}.pkl")
-        mask = (tx_full['Time_UTC'] >= JJA2021_START) & (tx_full['Time_UTC'] < JJA2021_END)
-        tablex = tx_full[mask].reset_index(drop=True)
-        tabley = ty_full[mask].reset_index(drop=True)
-    elif split_type == 'spatial':
-        tablex = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city}.pkl")
-        tabley = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city}.pkl")
-    elif split_type == 'jja2020': 
-        JJA2020_START = pd.Timestamp('2020-07-15', tz='UTC')
-        JJA2020_END   = pd.Timestamp('2020-09-15', tz='UTC')
-        tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city}.pkl")
-        ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city}.pkl")
-        mask = (tx_full['Time_UTC'] >= JJA2020_START) & (tx_full['Time_UTC'] < JJA2020_END)
-        tablex = tx_full[mask].reset_index(drop=True)
-        tabley = ty_full[mask].reset_index(drop=True)
-    else:  # last_year
-        with open("city_test_cutoffs.json") as f:
-            cutoffs = json.load(f)
-        test_start = pd.Timestamp(cutoffs[city])
-        tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city}.pkl")
-        ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city}.pkl")
-        mask = tx_full['Time_UTC'] >= test_start
-        tablex = tx_full[mask].reset_index(drop=True)
-        tabley = ty_full[mask].reset_index(drop=True)
-    print(f"Test rows for {city} ({split_type}): {len(tablex):,}")
+if test_type == 'urs':
+    tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_urs_{city}.pkl")
+    ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_urs_{city}.pkl")
+else:
+    tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city}.pkl")
+    ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city}.pkl")
+
+
+
+if test_type == 'urs':
+    tablex = tx_full.reset_index(drop=True)
+    tabley = ty_full.reset_index(drop=True)
     tablex, tabley, tablex_ref = preprocess([tablex], [tabley])
 else:
-    tablex = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city}.pkl")
-    tabley = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city}.pkl")
-    tablex, tabley, tablex_ref = preprocess([tablex], [tabley])
-    tablex, tabley, tablex_ref = subset_by_timestamps_method2(tablex, tabley, tablex_ref, start_time, amount_of_days)
+    if use_jja:
+        if split_type == 'jja2021':
+            JJA2021_START = pd.Timestamp('2021-07-15', tz='UTC')
+            JJA2021_END   = pd.Timestamp('2021-09-15', tz='UTC')
+            mask = (tx_full['Time_UTC'] >= JJA2021_START) & (tx_full['Time_UTC'] < JJA2021_END)
+            tablex = tx_full[mask].reset_index(drop=True)
+            tabley = ty_full[mask].reset_index(drop=True)
+        elif split_type == 'jja2020': 
+            JJA2020_START = pd.Timestamp('2020-07-15', tz='UTC')
+            JJA2020_END   = pd.Timestamp('2020-09-15', tz='UTC')
+            mask = (tx_full['Time_UTC'] >= JJA2020_START) & (tx_full['Time_UTC'] < JJA2020_END)
+            tablex = tx_full[mask].reset_index(drop=True)
+            tabley = ty_full[mask].reset_index(drop=True)
+        else:  # last_year
+            with open("../data_processing/city_test_cutoffs.json") as f:
+                cutoffs = json.load(f)
+            test_start = pd.Timestamp(cutoffs[city])
+
+            mask = tx_full['Time_UTC'] >= test_start
+            tablex = tx_full[mask].reset_index(drop=True)
+            tabley = ty_full[mask].reset_index(drop=True)
+        print(f"Test rows for {city} ({split_type}): {len(tablex):,}")
+        tablex, tabley, tablex_ref = preprocess([tablex], [tabley])
+
+
+    else:
+        tablex = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city}.pkl")
+        tabley = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city}.pkl")
+        tablex, tabley, tablex_ref = preprocess([tablex], [tabley])
+        tablex, tabley, tablex_ref = subset_by_timestamps_method2(tablex, tabley, tablex_ref, start_time, amount_of_days)
 
 
 
@@ -87,6 +96,15 @@ print(tablex)
 print(tabley)
 
 
+
+# Drop NaN rows from test data
+valid = tabley.notna().all(axis=1) & tablex.notna().all(axis=1)
+n_dropped = (~valid).sum()
+if n_dropped > 0:
+    print(f"  Warning: dropping {n_dropped} NaN rows from test set for {city}")
+tablex     = tablex[valid].reset_index(drop=True)
+tabley     = tabley[valid].reset_index(drop=True)
+tablex_ref = tablex_ref[valid].reset_index(drop=True)
 
 X = tablex.to_numpy()
 
@@ -190,12 +208,12 @@ analysis(y_pred_df)
 
 
 
-print("---------6. Creating time series plots per location-----------")
+# print("---------6. Creating time series plots per location-----------")
 #commented out just to not plot them again but the function is good and works
 
 #location_plots(location_plots_dir,unique_locations,y_pred_df,tabley)
 
-print("---------7. Creating aggregated LCZ plots-----------")
+# print("---------7. Creating aggregated LCZ plots-----------")
 #commented out just to not plot them again but the function is good and works
 
 # Add LCZ information to both DataFrames
@@ -210,7 +228,7 @@ os.makedirs(lcz_plots_dir, exist_ok=True)
 
 
 
-print("---------8. Temperature-dependent error analysis-----------")
+# print("---------8. Temperature-dependent error analysis-----------")
 # Add this after your existing analysis calls
 # binned_results = plot_rmse_bias_by_observed_temp(
 #     y_pred_df, 
@@ -285,55 +303,55 @@ y_vals_3035 = tablex_ref['Y3035'].values
 
 
 
-if city == "birmingham":
-    lat0 = 52.481983717827056
-    lon0 = -1.896175877351571
+# if city == "birmingham":
+#     lat0 = 52.481983717827056
+#     lon0 = -1.896175877351571
 
-# Plot RMSE
-station_rmse_df = plot_station_metric_points(
-    y_pred_df=y_pred_df,
-    tabley=tabley,
-    x_vals_3035=x_vals_3035,
-    y_vals_3035=y_vals_3035,
-    output_dir=output_dir,
-    city=city,
-    month=month,
-    center_lon=lon0, 
-    center_lat=lat0,
-    start_year=start_year,
-    metric='rmse',
-    vmin=0.0,
-    vmax=3.5
-)
+# # Plot RMSE
+# station_rmse_df = plot_station_metric_points(
+#     y_pred_df=y_pred_df,
+#     tabley=tabley,
+#     x_vals_3035=x_vals_3035,
+#     y_vals_3035=y_vals_3035,
+#     output_dir=output_dir,
+#     city=city,
+#     month=month,
+#     center_lon=lon0, 
+#     center_lat=lat0,
+#     start_year=start_year,
+#     metric='rmse',
+#     vmin=0.0,
+#     vmax=3.5
+# )
 
-# Plot R²
-station_r2_df = plot_station_metric_points(
-    y_pred_df=y_pred_df,
-    tabley=tabley,
-    x_vals_3035=x_vals_3035,
-    y_vals_3035=y_vals_3035,
-    output_dir=output_dir,
-    city=city,
-    month=month,
-    center_lon=lon0, 
-    center_lat=lat0,
-    start_year=start_year,
-    metric='r2',
-    vmin=0.0,
-    vmax=1.0
-)
+# # Plot R²
+# station_r2_df = plot_station_metric_points(
+#     y_pred_df=y_pred_df,
+#     tabley=tabley,
+#     x_vals_3035=x_vals_3035,
+#     y_vals_3035=y_vals_3035,
+#     output_dir=output_dir,
+#     city=city,
+#     month=month,
+#     center_lon=lon0, 
+#     center_lat=lat0,
+#     start_year=start_year,
+#     metric='r2',
+#     vmin=0.0,
+#     vmax=1.0
+# )
 
-# Plot Bias
-station_bias_df = plot_station_metric_points(
-    y_pred_df=y_pred_df,
-    tabley=tabley,
-    x_vals_3035=x_vals_3035,
-    y_vals_3035=y_vals_3035,
-    output_dir=output_dir,
-    city=city,
-    month=month,
-    center_lon=lon0, 
-    center_lat=lat0,
-    start_year=start_year,
-    metric='bias'
-)
+# # Plot Bias
+# station_bias_df = plot_station_metric_points(
+#     y_pred_df=y_pred_df,
+#     tabley=tabley,
+#     x_vals_3035=x_vals_3035,
+#     y_vals_3035=y_vals_3035,
+#     output_dir=output_dir,
+#     city=city,
+#     month=month,
+#     center_lon=lon0, 
+#     center_lat=lat0,
+#     start_year=start_year,
+#     metric='bias'
+# )

@@ -27,6 +27,133 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 plt.rcParams['font.family'] = 'serif'
 plt.rcParams['font.size']= 11
 
+import os
+import json
+import pandas as pd
+
+# ── Period definitions ─────────────────────────────────────────────────────────
+JJA2021_VAL_START  = pd.Timestamp('2021-05-15', tz='UTC')
+JJA2021_VAL_END    = pd.Timestamp('2021-07-15', tz='UTC')
+JJA2021_TEST_START = pd.Timestamp('2021-07-15', tz='UTC')
+JJA2021_TEST_END   = pd.Timestamp('2021-09-15', tz='UTC')
+JJA2021_TRAIN_END  = pd.Timestamp('2021-05-15', tz='UTC')
+
+JJA2020_VAL_START  = pd.Timestamp('2020-05-15', tz='UTC')
+JJA2020_VAL_END    = pd.Timestamp('2020-07-15', tz='UTC')
+JJA2020_TEST_START = pd.Timestamp('2020-07-15', tz='UTC')
+JJA2020_TEST_END   = pd.Timestamp('2020-09-15', tz='UTC')
+JJA2020_TRAIN_END  = pd.Timestamp('2020-05-15', tz='UTC')
+
+DATA_DIR = "../data_processing/dataframes_ready"
+
+
+def load_split(city, split_type, period, cutoffs_path="../data_processing/city_test_cutoffs.json", _cutoff_city=None):
+    """
+    Load and slice the base pickle for a given city, split type, and period.
+
+    Parameters
+    ----------
+    city        : str   e.g. 'zurich'
+    split_type  : str   'jja2021' | 'jja2020' | 'last_year' | 'spatial'
+    period      : str   'train' | 'val' | 'test'
+    cutoffs_path: str   path to city_test_cutoffs.json (only needed for last_year)
+
+    Returns
+    -------
+    pd.DataFrame — sliced to the requested period
+    """
+    path = os.path.join(DATA_DIR, f"tablex_{city}.pkl")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Base pickle not found: {path}")
+
+    tx = pd.read_pickle(path)
+    t  = tx['Time_UTC']
+
+    if split_type == 'jja2021':
+        slices = {
+            'train': tx[t <  JJA2021_TRAIN_END],
+            'val':   tx[(t >= JJA2021_VAL_START)  & (t < JJA2021_VAL_END)],
+            'test':  tx[(t >= JJA2021_TEST_START)  & (t < JJA2021_TEST_END)],
+        }
+
+    elif split_type == 'jja2020':
+        slices = {
+            'train': tx[t <  JJA2020_TRAIN_END],
+            'val':   tx[(t >= JJA2020_VAL_START)  & (t < JJA2020_VAL_END)],
+            'test':  tx[(t >= JJA2020_TEST_START)  & (t < JJA2020_TEST_END)],
+        }
+
+    elif split_type == 'last_year':
+        lookup = _cutoff_city or city
+        try:
+            with open(cutoffs_path) as f:
+                cutoff = pd.Timestamp(json.load(f)[lookup])
+        except (FileNotFoundError, KeyError) as e:
+            raise ValueError(f"Could not load cutoff for {city}: {e}")
+        val_start = cutoff - pd.DateOffset(years=1)
+        slices = {
+            'train': tx[t <  val_start],
+            'val':   tx[(t >= val_start) & (t < cutoff)],
+            'test':  tx[t >= cutoff],
+        }
+
+    elif split_type == 'spatial':
+        # No temporal split — full dataframe for all periods
+        slices = {
+            'train': tx,
+            'val':   tx,
+            'test':  tx,
+        }
+
+    else:
+        raise ValueError(f"Unknown split_type: {split_type!r}")
+
+    if period not in slices:
+        raise ValueError(f"Unknown period {period!r}, choose from {list(slices)}")
+
+    result = slices[period]
+    if len(result) == 0:
+        raise ValueError(f"Empty slice for city={city}, split={split_type}, period={period}")
+
+    return result
+
+
+def load_split_xy(city, split_type, period, target_city=None, cutoffs_path="../data_processing/city_test_cutoffs.json"):
+    lookup_city = target_city if (split_type == 'last_year' and target_city) else city
+    tx = load_split(city, split_type, period, cutoffs_path=cutoffs_path, _cutoff_city=lookup_city)
+
+    ty_path = os.path.join(DATA_DIR, f"tabley_{city}.pkl")
+    if not os.path.exists(ty_path):
+        raise FileNotFoundError(f"tabley not found: {ty_path}")
+    ty_full = pd.read_pickle(ty_path)
+
+    ty = ty_full.loc[tx.index].reset_index(drop=True)
+    tx = tx.reset_index(drop=True)
+
+    # Drop rows where either tx or ty has NaN
+    valid = ty.notna().all(axis=1) & tx.notna().all(axis=1)
+    n_dropped = (~valid).sum()
+    if n_dropped > 0:
+        print(f"  Warning: dropping {n_dropped} NaN rows from {city}/{period}")
+    tx = tx[valid].reset_index(drop=True)
+    ty = ty[valid].reset_index(drop=True)
+
+    if len(tx) == 0:
+        raise ValueError(f"No valid rows left for {city}/{period} after NaN removal")
+
+    return tx, ty
+
+
+def has_period_data(city, split_type, period, target_city=None,
+                    min_samples=5000, cutoffs_path="../data_processing/city_test_cutoffs.json"):
+    """Check if a city has enough rows for a given period without raising."""
+    try:
+        tx = load_split(city, split_type, period,
+                        cutoffs_path=cutoffs_path, _cutoff_city=target_city or city)
+        return len(tx) >= min_samples
+    except (FileNotFoundError, ValueError, KeyError):
+        return False
+
 
 # Method 2: Using date range filtering - more efficient for large datasets
 def subset_by_timestamps_method2(tablex, tabley, tablex_ref, start_time, amount_of_days):

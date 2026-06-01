@@ -3,6 +3,8 @@ from xgb_b_make_model import *
 from xgb_config import ModelConfig
 import time
 import json
+from xgb_d_functions import load_split_xy
+
 
 
 if __name__ == "__main__":
@@ -33,9 +35,7 @@ if __name__ == "__main__":
     
     print(f"\nConfiguration: {model_name}")
     print(f"Training on {len(cities_to_train)} cities: {', '.join(cities_to_train)}")
-    
-    # Load only the specified cities
-    selected_tablex, selected_tabley = [], []
+
 
     
     # for city_name in cities_to_train:
@@ -50,104 +50,41 @@ if __name__ == "__main__":
     #     print(f"  Loaded: {city_name}")
 
     city_row_counts = {}
-
-    JJA2021_START = pd.Timestamp('2021-05-15', tz='UTC')
-    JJA2021_END   = pd.Timestamp('2021-07-15', tz='UTC')
-    JJA2020_START = pd.Timestamp('2020-05-15', tz='UTC')  # already used as JJA2020_TRAIN_CUTOFF
-
     split_type = os.environ.get('SPLIT_TYPE', SPLIT_TYPE)
-    JJA2020_TRAIN_CUTOFF = pd.Timestamp('2020-05-15', tz='UTC')
-
-    if split_type == 'last_year':
-        target_city = os.environ.get('PIPELINE_TARGET_CITY', '').lower()
-        with open("../data_processing/city_test_cutoffs.json") as f:
-            cutoffs = json.load(f)
-        train_cutoff = pd.Timestamp(cutoffs[target_city])
-    elif split_type == 'jja2020':
-        train_cutoff = JJA2020_TRAIN_CUTOFF
+    target_city = os.environ.get('PIPELINE_TARGET_CITY', '').lower() or None
 
     # Geo-split: separate eval cities passed via env
     eval_cities_env = os.environ.get('PIPELINE_EVAL_CITIES', '')
     eval_cities = [c.strip() for c in eval_cities_env.split(',') if c.strip()]
     geo_split = len(eval_cities) > 0
 
-    def load_city_data(city_name, is_eval=False):
-        """Load and temporally slice data for a city based on split_type."""
-        if split_type == 'jja2021':
-            tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
-            ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
-            if is_eval:
-                mask = (tx_full['Time_UTC'] >= JJA2021_START) & (tx_full['Time_UTC'] < JJA2021_END)
-            else:
-                mask = tx_full['Time_UTC'] < JJA2021_START
-            tx = tx_full[mask].reset_index(drop=True)
-            ty = ty_full[mask].reset_index(drop=True)
-            period = "JJA2021" if is_eval else f"pre-{JJA2021_START.date()}"
-            print(f"  {city_name}: {period} ({len(tx):,} rows)")
-
-        elif split_type == 'jja2020':
-            tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
-            ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
-            if is_eval:
-                # Validation: only JJA 2020 (Jun–Aug 2020)
-                JJA2020_END = pd.Timestamp('2020-07-15', tz='UTC')
-                mask = (tx_full['Time_UTC'] >= JJA2020_TRAIN_CUTOFF) & (tx_full['Time_UTC'] < JJA2020_END)
-            else:
-                # Training: everything before JJA 2020
-                mask = tx_full['Time_UTC'] < JJA2020_TRAIN_CUTOFF
-            tx = tx_full[mask].reset_index(drop=True)
-            ty = ty_full[mask].reset_index(drop=True)
-            period = "JJA2020" if is_eval else f"pre-{JJA2020_TRAIN_CUTOFF.date()}"
-            print(f"  {city_name}: {period} ({len(tx):,} rows)")
-
-        elif split_type == 'last_year':
-            tx_full = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
-            ty_full = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
-            val_start = train_cutoff - pd.DateOffset(years=1)
-            if is_eval:
-                mask = (tx_full['Time_UTC'] >= val_start) & (tx_full['Time_UTC'] < train_cutoff)
-            else:
-                mask = tx_full['Time_UTC'] < val_start
-            period = f"{val_start.date()} – {train_cutoff.date()}" if is_eval else f"< {val_start.date()}"
-            tx = tx_full[mask].reset_index(drop=True)
-            ty = ty_full[mask].reset_index(drop=True)
-            # period = f">= {train_cutoff.date()}" if is_eval else f"< {train_cutoff.date()}"
-            print(f"  {city_name}: data {period} ({len(tx):,} rows)")
-
-        else:  # spatial
-            tx = pd.read_pickle(f"../data_processing/dataframes_ready/tablex_{city_name}.pkl")
-            ty = pd.read_pickle(f"../data_processing/dataframes_ready/tabley_{city_name}.pkl")
-
-        return tx, ty
-
     # Load training cities
     selected_tablex, selected_tabley = [], []
     for city_name in cities_to_train:
-        tablex, tabley = load_city_data(city_name, is_eval=False)
-        if tablex.empty or len(tablex) < MIN_TRAIN_SAMPLES:
-            print(f"  WARNING: {city_name} insufficient train data, skipping")
-            continue
-        n = len(tablex)
-        city_row_counts[city_name] = n
-        print(f"  Loaded train: {city_name} ({n:,} rows)")
-        selected_tablex.append(tablex)
-        selected_tabley.append(tabley)
+        try:
+            tx, ty = load_split_xy(city_name, split_type, 'train', target_city=target_city)
+            print(f"  Loaded train: {city_name} ({len(tx):,} rows)")
+            city_row_counts[city_name] = len(tx)
+            selected_tablex.append(tx)
+            selected_tabley.append(ty)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"  WARNING: {city_name} skipped — {e}")
 
     with open("city_row_counts.json", "w") as f:
         json.dump(city_row_counts, f)
 
-    # Load eval cities if geo split
-    selected_evalx, selected_evaly = [], []
+    # Load eval cities
+    selected_evalx, selected_evaly = [], []  # ← must be initialized before the if
     if geo_split:
         print(f"\nLoading eval cities: {eval_cities}")
         for city_name in eval_cities:
-            ex, ey = load_city_data(city_name, is_eval=True)
-            if ex.empty or len(ex) < MIN_TRAIN_SAMPLES:
-                print(f"  WARNING: eval city {city_name} insufficient data, skipping")
-                continue
-            print(f"  Loaded eval:  {city_name} ({len(ex):,} rows)")
-            selected_evalx.append(ex)
-            selected_evaly.append(ey)
+            try:
+                ex, ey = load_split_xy(city_name, split_type, 'val', target_city=target_city)
+                print(f"  Loaded eval: {city_name} ({len(ex):,} rows)")
+                selected_evalx.append(ex)
+                selected_evaly.append(ey)
+            except (FileNotFoundError, ValueError) as e:
+                print(f"  WARNING: eval {city_name} skipped — {e}")
 
     print("---------2. Preprocessing tables-----------")
     tablex, tabley, tablex_ref = preprocess(selected_tablex, selected_tabley)
@@ -183,6 +120,11 @@ if __name__ == "__main__":
         tablez['y_obs']    = y_val_abs
         tablez['y_pred']   = y_pred_abs
         tablez['residual'] = tablez['y_pred'] - tablez['y_obs']
+
+        target_city_env = os.environ.get('PIPELINE_TARGET_CITY', 'unknown')
+        val_out = f"../data_processing/dataframes_ready/tablez_val_{target_city_env}.pkl"
+        tablez.to_pickle(val_out)
+        print(f"  Saved val set to {val_out}")
 
     else:
         X_train, X_val, y_train, y_val, tablex, tabley, test_idx = split(tablex, tabley, tablex_ref)

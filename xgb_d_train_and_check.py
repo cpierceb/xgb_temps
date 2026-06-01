@@ -11,11 +11,21 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import euclidean_distances
 from xgb_config import ModelConfig
-from xgb_0_prep_params import MIN_TRAIN_SAMPLES, MIN_TEST_SAMPLES
+from xgb_0_prep_params import MIN_TRAIN_SAMPLES, MIN_TEST_SAMPLES, features
+import xgboost as xgb
+import shap
+import matplotlib.pyplot as plt
+import cmcrameri.cm as cmc
+from xgb_d_functions import has_period_data
+
+
+
+
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-SPLIT_TYPE_RUN = 'jja2020'   # jja2021 | jja2020 | last_year | spatial
-TARGET_CITIES_TO_RUN = None #['basel']  # None = all, or e.g. ['amsterdam', 'berlin']
+TEST_TYPE_RUN = 'urs' #None
+SPLIT_TYPE_RUN = 'spatial'   # jja2021 | jja2020 | last_year | spatial
+TARGET_CITIES_TO_RUN = ['lausanne', 'thun', 'winterthur'] #['basel']  # None = all, or e.g. ['amsterdam', 'berlin']
 N_EVAL   = 3
 N_TRAIN  = 6
 NO_PREJJA_CITIES = {'biel', 'freiburg'}
@@ -38,6 +48,8 @@ CITY_COUNTRIES = {
     'freiburg': 'germany',       'ghent': 'belgium',
     'novisad': 'serbia',         'rennes': 'france',
     'turku': 'finland',          'zurich': 'switzerland',
+    "lausanne": "switzerland",   "thun": "switzerland",
+    "winterthur": "switzerland",
 }
 
 
@@ -59,71 +71,25 @@ def compute_city_rankings(excel_path='climate_data.xlsx'):
     return rankings
 
 
-def select_eval_and_train(ranked, n_eval, n_train, min_samples, split_type, target_city=None):
-
-    def has_eval_data(city):
-        if split_type == 'last_year' and city in NO_LASTYEAR_CITIES:
-            return False
-        if split_type == 'jja2021':
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            tx = pd.read_pickle(path)
-            return ((tx['Time_UTC'] >= pd.Timestamp('2021-05-15', tz='UTC')) &
-                    (tx['Time_UTC'] <  pd.Timestamp('2021-07-15', tz='UTC'))).sum() >= min_samples
-        elif split_type == 'jja2020':
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            tx = pd.read_pickle(path)
-            return ((tx['Time_UTC'] >= pd.Timestamp('2020-05-15', tz='UTC')) &
-                    (tx['Time_UTC'] <  pd.Timestamp('2020-07-15', tz='UTC'))).sum() >= min_samples
-        elif split_type == 'last_year':
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            try:
-                with open("../data_processing/city_test_cutoffs.json") as f:
-                    cutoffs = json.load(f)
-                cutoff = pd.Timestamp(cutoffs[target_city])
-            except (FileNotFoundError, KeyError): return False
-            cutoff_end = cutoff + pd.DateOffset(years=1)
-            tx = pd.read_pickle(path)
-            return ((tx['Time_UTC'] >= cutoff) & (tx['Time_UTC'] < cutoff_end)).sum() >= min_samples
-        else:
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            return len(pd.read_pickle(path)) >= min_samples
-
-    def has_train_data(city):
-        if split_type == 'jja2021':
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            tx = pd.read_pickle(path)
-            return (tx['Time_UTC'] < pd.Timestamp('2021-05-15', tz='UTC')).sum() >= min_samples
-        elif split_type == 'jja2020':
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            tx = pd.read_pickle(path)
-            return (tx['Time_UTC'] < pd.Timestamp('2020-05-15', tz='UTC')).sum() >= min_samples
-        elif split_type == 'last_year':
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            try:
-                with open("city_test_cutoffs.json") as f:
-                    cutoffs = json.load(f)
-                cutoff = pd.Timestamp(cutoffs[target_city])
-            except (FileNotFoundError, KeyError): return False
-            tx = pd.read_pickle(path)
-            return (tx['Time_UTC'] < cutoff).sum() >= min_samples
-        else:
-            path = f"../data_processing/dataframes_ready/tablex_{city}.pkl"
-            if not os.path.exists(path): return False
-            return len(pd.read_pickle(path)) >= min_samples
-
+def select_eval_and_train(ranked, n_eval, n_train, min_samples, split_type,
+                          target_city=None, no_eval_cities=None):
+    no_eval_cities = no_eval_cities or set()
     eval_cities, train_cities = [], []
+
     for city in ranked:
-        if len(eval_cities) < n_eval and has_eval_data(city):
+        if city in no_eval_cities:
+            if len(train_cities) < n_train and has_period_data(
+                    city, split_type, 'train', target_city, min_samples):
+                train_cities.append(city)
+            continue
+
+        if len(eval_cities) < n_eval and has_period_data(
+                city, split_type, 'val', target_city, min_samples):
             eval_cities.append(city)
-        elif len(train_cities) < n_train and has_train_data(city):
+        elif len(train_cities) < n_train and has_period_data(
+                city, split_type, 'train', target_city, min_samples):
             train_cities.append(city)
+
         if len(eval_cities) == n_eval and len(train_cities) == n_train:
             break
 
@@ -144,6 +110,10 @@ CITY_RANKINGS = {
     'rennes': ['berlin', 'amsterdam', 'birmingham', 'basel', 'freiburg', 'turku', 'ghent', 'zurich', 'biel', 'bern', 'novisad'],
     'turku': ['ghent', 'berlin', 'birmingham', 'novisad', 'freiburg', 'rennes', 'zurich', 'basel', 'bern', 'biel', 'amsterdam'],
     'zurich': ['bern', 'freiburg', 'basel', 'biel', 'turku', 'berlin', 'rennes', 'ghent', 'birmingham', 'novisad', 'amsterdam'],
+    'lausanne': ['bern', 'biel', 'zurich','freiburg', 'basel', 'turku', 'novisad', 'berlin', 'ghent', 'birmingham', 'rennes', 'amsterdam'],
+    'thun':     ['bern', 'biel','zurich', 'novisad', 'freiburg', 'turku', 'basel', 'ghent', 'berlin', 'birmingham', 'rennes', 'amsterdam'],
+    'winterthur': ['bern', 'zurich', 'biel', 'freiburg', 'basel', 'turku', 'berlin', 'ghent', 'novisad', 'birmingham', 'rennes', 'amsterdam'],
+
 }
 
 
@@ -224,18 +194,23 @@ def main():
             print(f"  ✗ Not enough cities ({len(ranked)} available, need {N_EVAL+N_TRAIN})")
             continue
 
+        no_eval = NO_LASTYEAR_CITIES if SPLIT_TYPE_RUN == 'last_year' else \
+          NO_PREJJA_CITIES if SPLIT_TYPE_RUN in ('jja2021', 'jja2020') else set()
         eval_cities, train_cities = select_eval_and_train(
             ranked, N_EVAL, N_TRAIN, MIN_TRAIN_SAMPLES, SPLIT_TYPE_RUN,
-            target_city=target_city
+            target_city=target_city, no_eval_cities=no_eval
         )
 
-        if len(eval_cities) < N_EVAL or len(train_cities) < N_TRAIN:
-            print(f"  ✗ Could not fill slots: {len(eval_cities)} eval, {len(train_cities)} train")
+        if len(eval_cities) < N_EVAL:
+            print(f"  ✗ Not enough eval cities: {len(eval_cities)}/{N_EVAL} — skipping {target_city}")
             continue
+        if len(train_cities) < 1:
+            print(f"  ✗ No train cities at all — skipping {target_city}")
+            continue
+        print(f"  Eval cities : {eval_cities} ({len(eval_cities)}/{N_EVAL})")
+        print(f"  Train cities: {train_cities} ({len(train_cities)}/{N_TRAIN})")
         model_path   = os.path.join(MODELS_DIR, f"xgb_geo36_{target_city}.json")
 
-        print(f"  Train cities: {train_cities}")
-        print(f"  Eval  cities: {eval_cities}")
         print(f"  Model will be saved to: {model_path}")
 
         ModelConfig.set_training_cities(train_cities, f'geo36_{target_city}')
@@ -243,6 +218,7 @@ def main():
         base_env = {
             **os.environ,
             'SPLIT_TYPE':              SPLIT_TYPE_RUN,
+            'TEST_TYPE':               TEST_TYPE_RUN,
             'PIPELINE_TARGET_CITY':    target_city,
             'PIPELINE_TARGET_COUNTRY': CITY_COUNTRIES[target_city],
             'PIPELINE_EVAL_CITIES':    ','.join(eval_cities),
@@ -258,12 +234,12 @@ def main():
 
         # ── Test (xgb_d_check) ─────────────────────────────────────────────
         # Determine test path to confirm data exists
-        test_path = f"../data_processing/dataframes_ready/tablex_{target_city}.pkl"
+        # test_path = f"../data_processing/dataframes_ready/tablex_{target_city}.pkl"
 
-        if not os.path.exists(test_path):
-            print(f"  Skipping test: {test_path} not found")
-            results.append({'city': target_city, 'train': True, 'test': None})
-            continue
+        # if not os.path.exists(test_path):
+        #     print(f"  Skipping test: {test_path} not found")
+        #     results.append({'city': target_city, 'train': True, 'test': None})
+        #     continue
 
 
         test_start, test_end = TEST_WINDOWS[SPLIT_TYPE_RUN]
@@ -279,6 +255,69 @@ def main():
                              f"Test geo_3_6 — {target_city}", test_env)
 
         results.append({'city': target_city, 'train': True, 'test': test_ok})
+
+
+        # ── SHAP analysis ──────────────────────────────────────────────────
+        # os.makedirs(f'../Plots/shap/{SPLIT_TYPE_RUN}', exist_ok=True)
+        # val_path = f"../data_processing/dataframes_ready/tablez_val_{target_city}.pkl"
+        # if not os.path.exists(val_path):
+        #     print(f"  ⚠ No val set found for SHAP ({val_path}), skipping.")
+        #     continue
+
+        # tablez_val = pd.read_pickle(val_path)
+        # X_val = tablez_val[features]
+        # print(f"  Val set loaded: {len(X_val)} rows, {len(X_val.columns)} features")
+
+        # booster = xgb.Booster()
+        # booster.load_model(model_path)
+        # final_model = xgb.XGBRegressor()
+        # final_model._Booster = booster
+
+        # explainer = shap.TreeExplainer(final_model)
+        # print("  Calculating SHAP values...")
+        # shap_values = explainer.shap_values(X_val)
+
+        # print(f"  SHAP values: {shap_values.shape[0]} predictions × {shap_values.shape[1]} features")
+        # print(f"  Base value: {explainer.expected_value:.4f}")
+
+        # sample_idx = 0
+        # model_pred = final_model.predict(X_val.iloc[[sample_idx]])[0]
+        # shap_sum   = explainer.expected_value + np.sum(shap_values[sample_idx])
+        # print(f"  Additivity check — model: {model_pred:.4f}, SHAP sum: {shap_sum:.4f}, "
+        #       f"diff: {abs(model_pred - shap_sum):.6f}")
+
+
+        # sample_idx = 0
+        # sample_idx = (tablez_val['y_obs'] - tablez_val['t2m']).argmax()
+        # shap.waterfall_plot(
+        #     shap.Explanation(
+        #         values=shap_values[sample_idx],
+        #         base_values=explainer.expected_value,
+        #         data=X_val.iloc[sample_idx],
+        #         feature_names=X_val.columns.tolist()
+        #     ),
+        #     max_display=10,
+        #     show=False
+        # )
+        # plt.title(f'Single sample explanation (idx={sample_idx})')
+        # plt.tight_layout()
+        # plt.savefig(f'../Plots/shap/{SPLIT_TYPE_RUN}/waterfall_{target_city}.png', dpi=150, bbox_inches='tight')
+        # plt.close()
+
+        # # ── 2. Beeswarm — distribution of SHAP values across ALL samples ──────────────
+        # # Each dot is one sample; colour = feature value; x-position = SHAP impact
+        # shap.summary_plot(
+        #     shap_values, X_val,
+        #     feature_names=X_val.columns.tolist(),
+        #     max_display=10,
+        #     cmap=cmc.roma_r,
+        #     show=False
+        # )
+        # plt.title(f'Feature impacts across all val samples — {target_city}')
+        # plt.tight_layout()
+        # plt.savefig(f'../Plots/shap/{SPLIT_TYPE_RUN}/beeswarm_{target_city}.png', dpi=150, bbox_inches='tight')
+        # plt.close()
+
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print(f"\n{'#'*70}\nSUMMARY\n{'#'*70}")

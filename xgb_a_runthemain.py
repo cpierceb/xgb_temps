@@ -1,18 +1,27 @@
 import subprocess
 import os
 
+# cities = [
+#     ("amsterdam", "netherlands"),
+#     ("basel", "switzerland"),
+#     ("berlin", "germany"),
+#     ("bern", "switzerland"),
+#     ("biel", "switzerland"),
+#     ("birmingham", "uk"),
+#     ("freiburg", "germany"),
+#     ("ghent", "belgium"),
+#     ("novisad", "serbia"),
+#     ("rennes", "france"),
+#     ("turku", "finland"),
+#     ("zurich", "switzerland")
+# ]
+
 cities = [
-    ("amsterdam", "netherlands"),
-    ("basel", "switzerland"),
-    ("berlin", "germany"),
     ("bern", "switzerland"),
     ("biel", "switzerland"),
-    ("birmingham", "uk"),
-    ("freiburg", "germany"),
-    ("ghent", "belgium"),
-    ("novisad", "serbia"),
-    ("rennes", "france"),
-    ("turku", "finland"),
+    ("lausanne", "switzerland"),
+    ("thun", "switzerland"),
+    ("winterthur", "switzerland"),
     ("zurich", "switzerland")
 ]
 
