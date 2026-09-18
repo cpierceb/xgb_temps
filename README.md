@@ -25,4 +25,4 @@ xgb_d_train_and_check.py is the wrapper that iteratively calls xgb_b_main.py (fo
 Further information is found in :
 
 Pierce, C., Burger, M. & Brönnimann, S. (2026)
-Comprehensive compilation and quality assessment of street-level urban air temperature measurements across European networks. _Machine Learning: Earth_.
+Investigating Generalization Capabilities of an XGBoost-Based Model for Urban Air Temperature Prediction in European Cities. _Machine Learning: Earth_.
