@@ -332,12 +332,20 @@ def train(X_train, X_val, y_train, y_val, use_stacking=False):
     """
         
     params = {
-        "eta": 0.3,
-        "max_depth": 6,
-        "colsample_bytree": 0.75,
-        "subsample": 0.95,
-        "gamma": 0.1,
-        "min_child_weight": 5,
+        # "eta": 0.3,
+        # "max_depth": 6,
+        # "colsample_bytree": 0.75,
+        # "subsample": 0.95,
+        # "gamma": 0.1,
+        # "min_child_weight": 5,
+        "eta": 0.2,
+        "max_depth": 4,
+        "colsample_bytree": 0.8,
+        "subsample": 0.8,
+        "gamma": 1.0,
+        "min_child_weight": 1.0,
+        "reg_lambda": 1.0,
+        "reg_alpha": 0.0
     }
 
     dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=features)

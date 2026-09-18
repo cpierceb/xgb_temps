@@ -91,9 +91,9 @@ else:
 
 # tablex, tabley, tablex_ref = subset_by_timestamps_method2(tablex, tabley,tablex_ref, start_time, amount_of_days)
 
-print("this is after taking a subset of the tables:")
-print(tablex)
-print(tabley)
+# print("this is after taking a subset of the tables:")
+# print(tablex)
+# print(tabley)
 
 
 
@@ -191,6 +191,30 @@ print(rmse)
 r2 = sklearn.metrics.r2_score(tabley['AbsTemp'], y_pred_df['AbsTemp'])
 print("R² is: ")
 print(r2)
+
+r2_resid = sklearn.metrics.r2_score(tabley['Temperature'], y_pred_df['Temperature'])
+print("R² (residuals) is: ")
+print(r2_resid)
+
+metrics_out = os.environ.get('PIPELINE_METRICS_OUT')
+if metrics_out:
+    obs = tabley['AbsTemp'].to_numpy()
+    res = y_pred_df['residual'].to_numpy()          # pred - obs
+    row = {
+        'fold':      os.environ.get('PIPELINE_FOLD', 'NA'),
+        'test_city': city,
+        'n':         int(len(obs)),
+        'rmse':      float(rmse),                    # per-city, readable
+        'r2':        float(r2),
+        'r2_resid':  float(r2_resid),  
+        'bias':      float(res.mean()),
+        'ss_res':    float((res**2).sum()),          # for pooling
+        'sum_res':   float(res.sum()),
+        'sum_y':     float(obs.sum()),
+        'sum_y2':    float((obs**2).sum()),
+    }
+    pd.DataFrame([row]).to_csv(metrics_out, mode='a',
+                              header=not os.path.exists(metrics_out), index=False)
 # print("mae is: ")
 # print(mae)
 # per‑LCZ RMSE
@@ -209,22 +233,22 @@ analysis(y_pred_df)
 
 
 # print("---------6. Creating time series plots per location-----------")
-#commented out just to not plot them again but the function is good and works
+# # commented out just to not plot them again but the function is good and works
 
-#location_plots(location_plots_dir,unique_locations,y_pred_df,tabley)
+# location_plots(location_plots_dir,unique_locations,y_pred_df,tabley)
 
 # print("---------7. Creating aggregated LCZ plots-----------")
 #commented out just to not plot them again but the function is good and works
 
-# Add LCZ information to both DataFrames
-y_pred_df['LCZ_100'] = tablex['LCZ_100']
-tabley['LCZ_100'] = tablex['LCZ_100']
+# # Add LCZ information to both DataFrames
+# y_pred_df['LCZ_100'] = tablex['LCZ_100']
+# tabley['LCZ_100'] = tablex['LCZ_100']
 
-# Create directory for LCZ plots
-lcz_plots_dir = os.path.join(output_dir, f'{start_year}_{month}_{city}/lcz_aggregates')
-os.makedirs(lcz_plots_dir, exist_ok=True)
+# # Create directory for LCZ plots
+# lcz_plots_dir = os.path.join(output_dir, f'{start_year}_{month}_{city}/lcz_aggregates')
+# os.makedirs(lcz_plots_dir, exist_ok=True)
 
-#lcz_aggregates(y_pred_df,tabley,lcz_plots_dir)
+# #lcz_aggregates(y_pred_df,tabley,lcz_plots_dir)
 
 
 
@@ -262,43 +286,43 @@ os.makedirs(lcz_plots_dir, exist_ok=True)
 
 # Add this after your existing extreme week plots
 # print("---------9. LCZ-based extreme week analysis-----------")
-lcz_results = make_extreme_week_lcz_plots(
-    y_pred_df, 
-    tabley, 
-    location_plots_dir, 
-    window_days=3.5, 
-    save=True, 
-    show=False
-)
+# lcz_results = make_extreme_week_lcz_plots(
+#     y_pred_df, 
+#     tabley, 
+#     location_plots_dir, 
+#     window_days=3.5, 
+#     save=True, 
+#     show=False
+# )
 
-# Hot extreme
-result_hot = make_single_extreme_lcz_plot(y_pred_df, tabley, location_plots_dir, extreme_type='hot')
+# # Hot extreme
+# result_hot = make_single_extreme_lcz_plot(y_pred_df, tabley, location_plots_dir, extreme_type='hot')
 
-# Cold extreme  
-result_cold = make_single_extreme_lcz_plot(y_pred_df, tabley, location_plots_dir, extreme_type='cold')
-# print(f"Hot plot: {result_hot['filename']}")
-# print(f"Cold plot: {result_cold['filename']}")
+# # Cold extreme  
+# result_cold = make_single_extreme_lcz_plot(y_pred_df, tabley, location_plots_dir, extreme_type='cold')
+# # print(f"Hot plot: {result_hot['filename']}")
+# # print(f"Cold plot: {result_cold['filename']}")
 
-print(f"LCZ {lcz_results['lcz']} extremes: Hot={lcz_results['hot']['median_temp']:.2f}°C, Cold={lcz_results['cold']['median_temp']:.2f}°C")
-# You can inspect the dataframes used for plotting:
-# hot_obs_df = results['hot']['obs_df']
-# hot_pred_df = results['hot']['pred_df']
+# print(f"LCZ {lcz_results['lcz']} extremes: Hot={lcz_results['hot']['median_temp']:.2f}°C, Cold={lcz_results['cold']['median_temp']:.2f}°C")
+# # You can inspect the dataframes used for plotting:
+# # hot_obs_df = results['hot']['obs_df']
+# # hot_pred_df = results['hot']['pred_df']
 
-print("---------8.1. Extreme analysis-----------")
+# print("---------8.1. Extreme analysis-----------")
 
 # Single threshold analysis
 # hot_results = calculate_extreme_csi(y_pred_df, tabley, percentile=99, extreme_type='hot')
 # cold_results = calculate_extreme_csi(y_pred_df, tabley, percentile=99, extreme_type='cold')
 
-warm_results = calculate_extreme_csi(y_pred_df, tabley, percentile=95, extreme_type='hot')
-cool_results = calculate_extreme_csi(y_pred_df, tabley, percentile=95, extreme_type='cold')
+# warm_results = calculate_extreme_csi(y_pred_df, tabley, percentile=95, extreme_type='hot')
+# cool_results = calculate_extreme_csi(y_pred_df, tabley, percentile=95, extreme_type='cold')
 
 
 
-print("---------9. Spatial RMSE visualization-----------")
-print("---------9. Spatial RMSE visualization-----------")
-x_vals_3035 = tablex_ref['X3035'].values
-y_vals_3035 = tablex_ref['Y3035'].values
+# print("---------9. Spatial RMSE visualization-----------")
+# print("---------9. Spatial RMSE visualization-----------")
+# x_vals_3035 = tablex_ref['X3035'].values
+# y_vals_3035 = tablex_ref['Y3035'].values
 
 
 

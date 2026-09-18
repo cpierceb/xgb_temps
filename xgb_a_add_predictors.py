@@ -3,6 +3,51 @@ from xgb_0_functions import *
 import pandas as pd
 from rasterio.warp import transform
 
+def get_raster_layers(city, country):
+    """Single source of truth: (column_name, path, needs_crop) for every sampled raster."""
+    return [
+        ('BH_100',            f"../tiffs/bh/{city}_100.tif",           False),
+        ('BH_100_250rad',     f"../tiffs/bh/{city}_100_250rad.tif",    False),
+        ('BH_100_500rad',     f"../tiffs/bh/{city}_100_500rad.tif",    False),
+        ('DTM_100',           f"../tiffs/dtm/{city}_100.tif",          False),
+        ('LCZ_100',           f"../tiffs/lcz/{city}_100.tif",          False),
+        ('LCZ_water_500rad',  f"../tiffs/lcz/{city}_water_500rad.tif", False),
+        ('TCD_100',           f"../tiffs/tcd/{city}_100.tif",          False),
+        ('TCD_100_250rad',    f"../tiffs/tcd/{city}_100_250rad.tif",   False),
+        ('TCD_100_500rad',    f"../tiffs/tcd/{city}_100_500rad.tif",   False),
+        ('IMP_100',           f"../tiffs/imp/{city}_100.tif",          False),
+        ('IMP_100_250rad',    f"../tiffs/imp/{city}_100_250rad.tif",   False),
+        ('IMP_100_500rad',    f"../tiffs/imp/{city}_100_500rad.tif",   False),
+    ]
+
+
+def raster_intersection_3035(city, country):
+    """
+    Intersection extent (EPSG:3035) of every raster add_geo samples, so each
+    grid cell has valid data for all predictors.
+
+    Returns:
+      bounds  : (left, bottom, right, top)
+      binding : {'left'/'bottom'/'right'/'top': raster name that constrains that side}
+      extents : {name: (left, bottom, right, top)} for printing
+    """
+    from rasterio.warp import transform_bounds
+    left, bottom, right, top = -float('inf'), -float('inf'), float('inf'), float('inf')
+    binding, extents = {}, {}
+    for name, path, _ in get_raster_layers(city, country):
+        if name.startswith('BH'):          # ← exclude building-height rasters from extent
+            continue
+        if path is None:
+            continue
+        b = raster_valid_bounds_3035(path)
+        extents[name] = b
+        l, bo, r, t = b
+        if l  > left:   left,   binding['left']   = l,  name
+        if bo > bottom: bottom, binding['bottom'] = bo, name
+        if r  < right:  right,  binding['right']  = r,  name
+        if t  < top:    top,    binding['top']    = t,  name
+    return (left, bottom, right, top), binding, extents
+
 
 def add_geo(tablex, city, country, buffer_m=1000):
     """
@@ -26,67 +71,68 @@ def add_geo(tablex, city, country, buffer_m=1000):
 
     # 3. Define layers to process
     # Each entry: (column_name, path_template, needs_crop)
-    layers = [
-        # City-specific building heights
-        # ('BH_10', 
-        # f"../tiffs/bh/{city}_10.tif", 
-        # False),
-        ('BH_100', 
-        f"../tiffs/bh/{city}_100.tif", 
-        False),
-        ('BH_100_250rad', 
-        f"../tiffs/bh/{city}_100_250rad.tif", 
-        False),
-        ('BH_100_500rad', 
-        f"../tiffs/bh/{city}_100_500rad.tif", 
-        False),
-        # European DEM to crop + city-specific DEMs
-        # ('DEM_30', 
-        # f"../tiffs/dem/{city}_30.tif" if city not in ("bern", "freiburg", "basel", "zurich") else "../tiffs/dem/eu_30.tif",
-        # False if city not in ("bern", "freiburg", "basel", "zurich") else False),
-        # ('DEM_90', 
-        # f"../tiffs/dem/{city}_90.tif", 
-        # False),
-        ('DTM_100', 
-        f"../tiffs/dtm/{city}_100.tif", 
-        False),
-        # LCZ (pan-Europe, always crop)
-        # ('LCZ_100', 
-        # "../tiffs/lcz_central_eu_meters.tif" if city in ("basel", "freiburg", "zurich", "bern") else f"../tiffs/lcz/{city}_100.tif",
-        # True if city in ("basel", "freiburg", "zurich", "bern") else False),
-        ('LCZ_100', 
-        f"../tiffs/lcz/{city}_100.tif", 
-        False),       
-        ('LCZ_water_500rad', 
-        f"../tiffs/lcz/{city}_water_500rad.tif",
-        False),  
-        # TCD: city, country, Europe
-        # ('TCD_10', 
-        # f"../tiffs/tcd/{city}_10.tif" if city not in ("bern", "freiburg", "basel", "zurich") else f"../tiffs/tcd/{country}_10.tif",
-        # False if city not in ("bern", "freiburg", "basel", "zurich") else True),
-        ('TCD_100', 
-        f"../tiffs/tcd/{city}_100.tif", 
-        False),
-        ('TCD_100_250rad', 
-        f"../tiffs/tcd/{city}_100_250rad.tif", 
-        False),
-        ('TCD_100_500rad', 
-        f"../tiffs/tcd/{city}_100_500rad.tif", 
-        False),
-        # Imperviousness: city, country, Europe
-        # ('IMP_10',
-        # f"../tiffs/imp/{country}_10.tif" if country in ("germany", "switzerland") else (f"../tiffs/imp/{city}_10.tif"), 
-        # False if city not in ("bern", "freiburg", "basel", "zurich") else True),
-        ('IMP_100', 
-        f"../tiffs/imp/{city}_100.tif", 
-        False),
-        ('IMP_100_250rad', 
-        f"../tiffs/imp/{city}_100_250rad.tif", 
-        False),
-        ('IMP_100_500rad', 
-        f"../tiffs/imp/{city}_100_500rad.tif", 
-        False),
-    ]
+    layers = get_raster_layers(city, country)
+    # layers = [
+    #     # City-specific building heights
+    #     # ('BH_10', 
+    #     # f"../tiffs/bh/{city}_10.tif", 
+    #     # False),
+    #     ('BH_100', 
+    #     f"../tiffs/bh/{city}_100.tif", 
+    #     False),
+    #     ('BH_100_250rad', 
+    #     f"../tiffs/bh/{city}_100_250rad.tif", 
+    #     False),
+    #     ('BH_100_500rad', 
+    #     f"../tiffs/bh/{city}_100_500rad.tif", 
+    #     False),
+    #     # European DEM to crop + city-specific DEMs
+    #     # ('DEM_30', 
+    #     # f"../tiffs/dem/{city}_30.tif" if city not in ("bern", "freiburg", "basel", "zurich") else "../tiffs/dem/eu_30.tif",
+    #     # False if city not in ("bern", "freiburg", "basel", "zurich") else False),
+    #     # ('DEM_90', 
+    #     # f"../tiffs/dem/{city}_90.tif", 
+    #     # False),
+    #     ('DTM_100', 
+    #     f"../tiffs/dtm/{city}_100.tif", 
+    #     False),
+    #     # LCZ (pan-Europe, always crop)
+    #     # ('LCZ_100', 
+    #     # "../tiffs/lcz_central_eu_meters.tif" if city in ("basel", "freiburg", "zurich", "bern") else f"../tiffs/lcz/{city}_100.tif",
+    #     # True if city in ("basel", "freiburg", "zurich", "bern") else False),
+    #     ('LCZ_100', 
+    #     f"../tiffs/lcz/{city}_100.tif", 
+    #     False),       
+    #     ('LCZ_water_500rad', 
+    #     f"../tiffs/lcz/{city}_water_500rad.tif",
+    #     False),  
+    #     # TCD: city, country, Europe
+    #     # ('TCD_10', 
+    #     # f"../tiffs/tcd/{city}_10.tif" if city not in ("bern", "freiburg", "basel", "zurich") else f"../tiffs/tcd/{country}_10.tif",
+    #     # False if city not in ("bern", "freiburg", "basel", "zurich") else True),
+    #     ('TCD_100', 
+    #     f"../tiffs/tcd/{city}_100.tif", 
+    #     False),
+    #     ('TCD_100_250rad', 
+    #     f"../tiffs/tcd/{city}_100_250rad.tif", 
+    #     False),
+    #     ('TCD_100_500rad', 
+    #     f"../tiffs/tcd/{city}_100_500rad.tif", 
+    #     False),
+    #     # Imperviousness: city, country, Europe
+    #     # ('IMP_10',
+    #     # f"../tiffs/imp/{country}_10.tif" if country in ("germany", "switzerland") else (f"../tiffs/imp/{city}_10.tif"), 
+    #     # False if city not in ("bern", "freiburg", "basel", "zurich") else True),
+    #     ('IMP_100', 
+    #     f"../tiffs/imp/{city}_100.tif", 
+    #     False),
+    #     ('IMP_100_250rad', 
+    #     f"../tiffs/imp/{city}_100_250rad.tif", 
+    #     False),
+    #     ('IMP_100_500rad', 
+    #     f"../tiffs/imp/{city}_100_500rad.tif", 
+    #     False),
+    # ]
 
     # 4. Crop and open each raster, store in dict
     rasters = {}
@@ -219,4 +265,41 @@ def add_meteo(tablex, lat0, lon0, dem_column='DTM_100'):
         tablex["d2m"] = relative_humidity(tablex["t2m"], tablex["d2m"])
         print("relative humidity calculation all good")
 
+    tablex = add_t2m_lags(tablex, lags=(1, 3, 6, 12))
+
     return tablex
+
+def add_t2m_lags(tablex, lags=(1, 3, 6, 12)):
+    """
+    Lagged ERA5 t2m predictors. Single-gridpoint per city => t2m is a pure
+    function of Time_UTC, so map (Time_UTC - lag) -> t2m. Gap-safe: missing
+    timestamps (series start, data gaps) yield NaN, which XGBoost handles.
+    """
+    t2m_by_time = (tablex[['Time_UTC', 't2m']]
+                   .drop_duplicates('Time_UTC')
+                   .set_index('Time_UTC')['t2m'])
+    for h in lags:
+        shifted = tablex['Time_UTC'] - pd.Timedelta(hours=h)
+        tablex[f't2m-{h}'] = shifted.map(t2m_by_time)
+    return tablex
+
+
+def raster_valid_bounds_3035(path):
+    """Bounds (EPSG:3035) of the *valid-data* region of a raster —
+    i.e. trimming nodata borders, not just the declared extent."""
+    from rasterio.warp import transform_bounds
+    with rasterio.open(path) as src:
+        data   = src.read(1)
+        nodata = src.nodata
+        valid  = np.ones(data.shape, dtype=bool)
+        if nodata is not None:
+            valid &= (data != nodata)
+        if np.issubdtype(data.dtype, np.floating):
+            valid &= ~np.isnan(data)
+        if not valid.any():
+            return transform_bounds(src.crs, "EPSG:3035", *src.bounds)
+        rows = np.where(valid.any(axis=1))[0]
+        cols = np.where(valid.any(axis=0))[0]
+        left,  top    = src.transform * (cols[0],      rows[0])
+        right, bottom = src.transform * (cols[-1] + 1, rows[-1] + 1)
+        return transform_bounds(src.crs, "EPSG:3035", left, bottom, right, top)

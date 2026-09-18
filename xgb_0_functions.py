@@ -9,7 +9,54 @@ from shapely.geometry import box
 from rasterio.windows import from_bounds, Window
 from xgb_0_prep_params import *
 
+# ---- LCZ one-hot encoding, categories fixed by training ----
+import json, numpy as np, pandas as pd
 
+LCZ_RAW_COLS = ["LCZ_100"]   # add directional cols here if you switch them on:
+                             # + ["LCZ_E","LCZ_NE","LCZ_N","LCZ_NW",
+                             #    "LCZ_W","LCZ_SW","LCZ_S","LCZ_SE"]
+LCZ_LEVELS_PATH = "lcz_levels.json"   # written once from training, read everywhere
+
+
+def fit_lcz_levels(train_df, path=LCZ_LEVELS_PATH):
+    """Fix the LCZ category set from TRAINING data; persist it. Run ONCE."""
+    levels = {c: sorted(int(v) for v in pd.unique(train_df[c].dropna()))
+              for c in LCZ_RAW_COLS}
+    json.dump(levels, open(path, "w"))
+    return levels
+
+
+def load_lcz_levels(path=LCZ_LEVELS_PATH):
+    return {k: list(map(int, v)) for k, v in json.load(open(path)).items()}
+
+
+def encode_lcz(df, levels):
+    """Replace each raw LCZ col with fixed one-hot columns. Unseen classes ->
+    all-zero across the known columns (correctly flags novelty). Returns
+    (df_without_raw_LCZ, list_of_new_column_names)."""
+    df = df.copy()
+    new_cols = []
+    for c in LCZ_RAW_COLS:
+        for v in levels[c]:
+            name = f"{c}__{v}"
+            df[name] = (df[c] == v).astype("float32")
+            new_cols.append(name)
+        df.drop(columns=[c], inplace=True)
+    return df, new_cols
+
+
+def expand_feature_list(base_features, levels):
+    """Turn the config `features` (with raw LCZ names) into the model's actual
+    column list (with one-hot LCZ names). Order preserved."""
+    out = []
+    for f in base_features:
+        if f in LCZ_RAW_COLS:
+            out += [f"{f}__{v}" for v in levels[f]]
+        else:
+            out.append(f)
+    return out
+
+    
 def relative_humidity(T, Td):
     """
     Calculate relative humidity (%) from air temperature (T) and dew point temperature (Td).

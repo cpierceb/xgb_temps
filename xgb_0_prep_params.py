@@ -70,7 +70,7 @@ features = [
     # "DEM_30", 
     # "DEM_90", 
     "DTM_100",
-    "LCZ_100", 
+    # "LCZ_100", 
     "LCZ_water_500rad",
     # "LCZ_E", "LCZ_NE", "LCZ_N", "LCZ_NW", "LCZ_W", "LCZ_SW", "LCZ_S", "LCZ_SE",
     # "TCD_10", 
@@ -80,6 +80,7 @@ features = [
     "IMP_100",
     "IMP_100_250rad","IMP_100_500rad",
     "t2m", "d2m", "ssrd" , "tp",#7 8 9 10
+    "t2m-1", "t2m-3", "t2m-6", "t2m-12",
     "u10", "v10", "sp" , #11 12 13
     "swvl1", "swvl3", #14 15 
     "z_950", "z_850", "z_500", "u_950", "u_850", "u_500", "v_950", "v_850", "v_500", #16 17 18 19 20 21 22 23 24
